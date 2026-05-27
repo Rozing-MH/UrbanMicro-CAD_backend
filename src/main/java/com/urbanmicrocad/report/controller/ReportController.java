@@ -1,0 +1,59 @@
+package com.urbanmicrocad.report.controller;
+
+import com.urbanmicrocad.common.response.ApiResponse;
+import com.urbanmicrocad.common.security.CurrentUser;
+import com.urbanmicrocad.report.dto.ExportReportRequest;
+import com.urbanmicrocad.report.dto.ReportSummary;
+import com.urbanmicrocad.report.service.ReportService;
+import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+import java.util.UUID;
+
+@RestController
+@RequestMapping("/api/reports")
+public class ReportController {
+    private final ReportService reportService;
+
+    public ReportController(ReportService reportService) {
+        this.reportService = reportService;
+    }
+
+    @PostMapping("/generate")
+    public ApiResponse<ReportSummary> generate(
+        @AuthenticationPrincipal CurrentUser user,
+        @Valid @RequestBody ExportReportRequest request
+    ) {
+        return ApiResponse.ok(reportService.generate(user, request));
+    }
+
+    @GetMapping
+    public ApiResponse<List<ReportSummary>> list(
+        @AuthenticationPrincipal CurrentUser user,
+        @RequestParam UUID projectId
+    ) {
+        return ApiResponse.ok(reportService.list(user, projectId));
+    }
+
+    @PostMapping("/export")
+    public ResponseEntity<byte[]> export(
+        @AuthenticationPrincipal CurrentUser user,
+        @Valid @RequestBody ExportReportRequest request
+    ) {
+        return reportService.export(user, request);
+    }
+
+    @GetMapping("/{id}/download")
+    public ResponseEntity<byte[]> download(@AuthenticationPrincipal CurrentUser user, @PathVariable UUID id) {
+        return reportService.download(user, id);
+    }
+}
