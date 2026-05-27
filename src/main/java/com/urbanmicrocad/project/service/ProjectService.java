@@ -11,6 +11,7 @@ import com.urbanmicrocad.common.exception.ErrorCode;
 import com.urbanmicrocad.common.security.CurrentUser;
 import com.urbanmicrocad.project.dto.CreateProjectRequest;
 import com.urbanmicrocad.project.dto.ProjectDTO;
+import com.urbanmicrocad.project.dto.ProjectSnapshotDTO;
 import com.urbanmicrocad.project.dto.SaveSnapshotRequest;
 import com.urbanmicrocad.project.dto.UpdateProjectRequest;
 import com.urbanmicrocad.project.entity.Project;
@@ -112,12 +113,50 @@ public class ProjectService {
         return toDto(updatedProject);
     }
 
+    public List<ProjectSnapshotDTO> listSnapshots(CurrentUser user, UUID projectId) {
+        requireProject(user, projectId);
+        return snapshotMapper.selectPage(new Page<>(1, MAX_LIST_SIZE), new LambdaQueryWrapper<ProjectSnapshot>()
+                .eq(ProjectSnapshot::getProjectId, projectId)
+                .eq(ProjectSnapshot::getIsDeleted, false)
+                .orderByDesc(ProjectSnapshot::getVersion))
+            .getRecords()
+            .stream()
+            .map(this::toSnapshotDto)
+            .toList();
+    }
+
+    @Transactional
+    public ProjectDTO restoreSnapshot(CurrentUser user, UUID projectId, UUID snapshotId) {
+        Project project = requireProject(user, projectId);
+        ProjectSnapshot snapshot = requireSnapshot(projectId, snapshotId);
+        JsonNode snapshotData = snapshot.getSnapshotData();
+        JsonNode topologyData = requireSnapshotField(snapshotData, "topologyData");
+        JsonNode ruleData = requireSnapshotField(snapshotData, "ruleData");
+        project.setTopologyData(topologyData);
+        project.setRuleData(ruleData);
+        project.setDescription(defaultString(snapshot.getDescription()));
+        project.setUpdatedAt(OffsetDateTime.now());
+        projectMapper.updateById(project);
+        return toDto(requireProject(user, projectId));
+    }
+
     public Project requireProject(CurrentUser user, UUID id) {
         Project project = projectMapper.selectOne(ownerQuery(user.id()).eq(Project::getId, id));
         if (project == null) {
             throw new ApiException(ErrorCode.NOT_FOUND, "工程不存在");
         }
         return project;
+    }
+
+    private ProjectSnapshot requireSnapshot(UUID projectId, UUID snapshotId) {
+        ProjectSnapshot snapshot = snapshotMapper.selectOne(new LambdaQueryWrapper<ProjectSnapshot>()
+            .eq(ProjectSnapshot::getProjectId, projectId)
+            .eq(ProjectSnapshot::getId, snapshotId)
+            .eq(ProjectSnapshot::getIsDeleted, false));
+        if (snapshot == null) {
+            throw new ApiException(ErrorCode.NOT_FOUND, "快照不存在");
+        }
+        return snapshot;
     }
 
     private LambdaQueryWrapper<Project> ownerQuery(Long userId) {
@@ -140,6 +179,24 @@ public class ProjectService {
             project.getUserId() == null ? null : project.getUserId().toString(),
             null
         );
+    }
+
+    private ProjectSnapshotDTO toSnapshotDto(ProjectSnapshot snapshot) {
+        return new ProjectSnapshotDTO(
+            snapshot.getId(),
+            snapshot.getProjectId(),
+            snapshot.getVersion(),
+            defaultString(snapshot.getDescription()),
+            snapshot.getCreatedAt(),
+            snapshot.getUpdatedAt()
+        );
+    }
+
+    private JsonNode requireSnapshotField(JsonNode snapshotData, String fieldName) {
+        if (snapshotData == null || !snapshotData.has(fieldName) || !snapshotData.get(fieldName).isObject()) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "快照数据不完整");
+        }
+        return snapshotData.get(fieldName);
     }
 
     private JsonNode defaultRuleData() {

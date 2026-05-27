@@ -4,6 +4,7 @@ import com.urbanmicrocad.common.response.ApiResponse;
 import com.urbanmicrocad.common.security.CurrentUser;
 import com.urbanmicrocad.project.dto.CreateProjectRequest;
 import com.urbanmicrocad.project.dto.ProjectDTO;
+import com.urbanmicrocad.project.dto.ProjectSnapshotDTO;
 import com.urbanmicrocad.project.dto.SaveSnapshotRequest;
 import com.urbanmicrocad.project.dto.UpdateProjectRequest;
 import com.urbanmicrocad.project.service.ProjectService;
@@ -70,5 +71,22 @@ public class ProjectController {
         @Valid @RequestBody SaveSnapshotRequest request
     ) {
         return ApiResponse.ok(projectService.saveSnapshot(user, id, request));
+    }
+
+    @GetMapping("/{id}/snapshots")
+    public ApiResponse<List<ProjectSnapshotDTO>> listSnapshots(
+        @AuthenticationPrincipal CurrentUser user,
+        @PathVariable UUID id
+    ) {
+        return ApiResponse.ok(projectService.listSnapshots(user, id));
+    }
+
+    @PostMapping("/{id}/snapshots/{snapshotId}/restore")
+    public ApiResponse<ProjectDTO> restoreSnapshot(
+        @AuthenticationPrincipal CurrentUser user,
+        @PathVariable UUID id,
+        @PathVariable UUID snapshotId
+    ) {
+        return ApiResponse.ok(projectService.restoreSnapshot(user, id, snapshotId));
     }
 }
