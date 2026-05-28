@@ -1,5 +1,6 @@
 package com.urbanmicrocad.template.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.urbanmicrocad.common.response.ApiResponse;
 import com.urbanmicrocad.template.dto.TemplateDTO;
 import com.urbanmicrocad.template.service.TemplateService;
@@ -24,6 +25,16 @@ public class TemplateController {
     @GetMapping
     public ApiResponse<List<TemplateDTO>> list(@RequestParam(required = false) String category) {
         return ApiResponse.ok(templateService.list(category));
+    }
+
+    @GetMapping("/cross-sections")
+    public ApiResponse<List<JsonNode>> listCrossSections() {
+        return ApiResponse.ok(templateService.listCrossSections());
+    }
+
+    @GetMapping("/cross-sections/{id}")
+    public ApiResponse<JsonNode> getCrossSection(@PathVariable String id) {
+        return ApiResponse.ok(templateService.getCrossSection(id));
     }
 
     @GetMapping("/{id}")
