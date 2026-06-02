@@ -41,7 +41,8 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ApiResponse<Void> logout() {
+    public ApiResponse<Void> logout(@AuthenticationPrincipal CurrentUser user) {
+        authService.logout(user);
         return ApiResponse.ok();
     }
 }

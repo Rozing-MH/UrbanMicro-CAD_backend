@@ -22,5 +22,7 @@ class JwtServiceTest {
         assertThat(parsed.id()).isEqualTo(1L);
         assertThat(parsed.username()).isEqualTo("demo");
         assertThat(parsed.role()).isEqualTo("USER");
+        assertThat(parsed.jti()).isNotNull();
+        assertThat(parsed.expiresAt()).isNotNull();
     }
 }

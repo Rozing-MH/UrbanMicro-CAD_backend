@@ -22,3 +22,8 @@ app:
   jwt:
     secret: test-secret-test-secret-test-secret-test-secret
     expires-minutes: 60
+  rate-limit:
+    login-max-requests: 5
+    login-window-seconds: 10
+    register-max-requests: 3
+    register-window-seconds: 10

@@ -7,6 +7,8 @@ import com.urbanmicrocad.common.security.CurrentUserService;
 import com.urbanmicrocad.common.security.CurrentUser;
 import com.urbanmicrocad.common.security.JwtAuthenticationFilter;
 import com.urbanmicrocad.common.security.JwtService;
+import com.urbanmicrocad.common.security.RateLimitFilter;
+import com.urbanmicrocad.common.security.TokenBlacklist;
 import com.urbanmicrocad.common.test.MockAuth;
 import com.urbanmicrocad.common.test.TestSecurityConfig;
 import com.urbanmicrocad.project.mapper.ProjectMapper;
@@ -69,6 +71,12 @@ class ReportControllerTest {
 
     @MockBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @MockBean
+    private RateLimitFilter rateLimitFilter;
+
+    @MockBean
+    private TokenBlacklist tokenBlacklist;
 
     // Mock mappers to prevent @MapperScan from requiring SqlSessionFactory
     @MockBean

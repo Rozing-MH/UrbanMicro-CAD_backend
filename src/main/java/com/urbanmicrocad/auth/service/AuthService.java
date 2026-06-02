@@ -10,22 +10,28 @@ import com.urbanmicrocad.common.exception.ApiException;
 import com.urbanmicrocad.common.exception.ErrorCode;
 import com.urbanmicrocad.common.security.CurrentUser;
 import com.urbanmicrocad.common.security.JwtService;
+import com.urbanmicrocad.common.security.TokenBlacklist;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+
 @Service
 public class AuthService {
     private final SysUserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final TokenBlacklist tokenBlacklist;
 
-    public AuthService(SysUserMapper userMapper, PasswordEncoder passwordEncoder, JwtService jwtService) {
+    public AuthService(SysUserMapper userMapper, PasswordEncoder passwordEncoder,
+                       JwtService jwtService, TokenBlacklist tokenBlacklist) {
         this.userMapper = userMapper;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.tokenBlacklist = tokenBlacklist;
     }
 
     @Transactional
@@ -58,6 +64,15 @@ public class AuthService {
     public LoginResponse me(CurrentUser user, String bearerToken) {
         String token = bearerToken != null && bearerToken.startsWith("Bearer ") ? bearerToken.substring(7) : "";
         return toLoginResponse(user, token);
+    }
+
+    /**
+     * Logout: add the current token to the blacklist so it cannot be reused.
+     */
+    public void logout(CurrentUser user) {
+        if (user.jti() != null && user.expiresAt() != null) {
+            tokenBlacklist.add(user.jti(), Instant.ofEpochMilli(user.expiresAt()));
+        }
     }
 
     private LoginResponse toLoginResponse(CurrentUser user, String token) {

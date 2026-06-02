@@ -8,6 +8,7 @@ public enum ErrorCode {
     FORBIDDEN(HttpStatus.FORBIDDEN, "无权限访问该资源"),
     NOT_FOUND(HttpStatus.NOT_FOUND, "资源不存在"),
     CONFLICT(HttpStatus.CONFLICT, "资源状态冲突"),
+    TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, "请求过于频繁"),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "服务器内部错误");
 
     private final HttpStatus status;

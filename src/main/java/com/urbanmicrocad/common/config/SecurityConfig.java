@@ -3,6 +3,7 @@ package com.urbanmicrocad.common.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.urbanmicrocad.common.response.ApiResponse;
 import com.urbanmicrocad.common.security.JwtAuthenticationFilter;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
@@ -18,6 +19,12 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @EnableWebSecurity
 public class SecurityConfig {
 
+    private final boolean swaggerEnabled;
+
+    public SecurityConfig(@Value("${springdoc.api-docs.enabled:true}") boolean swaggerEnabled) {
+        this.swaggerEnabled = swaggerEnabled;
+    }
+
     @Bean
     public SecurityFilterChain securityFilterChain(
         HttpSecurity http,
@@ -29,18 +36,25 @@ public class SecurityConfig {
             // Stateless bearer-token API; no cookie-backed browser session is used.
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers(
-                    "/api/auth/login",
-                    "/api/auth/register",
-                    "/api-docs/**",
-                    "/swagger-ui.html",
-                    "/swagger-ui/**",
-                    "/actuator/health"
-                ).permitAll()
-                .requestMatchers("/api/**").authenticated()
-                .anyRequest().denyAll()
-            )
+            .authorizeHttpRequests(auth -> {
+                auth
+                    .requestMatchers(
+                        "/api/auth/login",
+                        "/api/auth/register",
+                        "/actuator/health"
+                    ).permitAll();
+                // Only expose Swagger paths when enabled (non-prod)
+                if (swaggerEnabled) {
+                    auth.requestMatchers(
+                        "/api-docs/**",
+                        "/swagger-ui.html",
+                        "/swagger-ui/**"
+                    ).permitAll();
+                }
+                auth
+                    .requestMatchers("/api/**").authenticated()
+                    .anyRequest().denyAll();
+            })
             .exceptionHandling(exceptions -> exceptions
                 .authenticationEntryPoint((request, response, authException) -> {
                     response.setStatus(401);

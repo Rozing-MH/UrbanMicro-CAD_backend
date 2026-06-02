@@ -4,6 +4,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -17,14 +18,19 @@ import java.util.List;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtService jwtService;
     private final CurrentUserService currentUserService;
+    private final TokenBlacklist tokenBlacklist;
 
-    public JwtAuthenticationFilter(JwtService jwtService, CurrentUserService currentUserService) {
+    public JwtAuthenticationFilter(JwtService jwtService, CurrentUserService currentUserService,
+                                   TokenBlacklist tokenBlacklist) {
         this.jwtService = jwtService;
         this.currentUserService = currentUserService;
+        this.tokenBlacklist = tokenBlacklist;
     }
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+    protected void doFilterInternal(@NonNull HttpServletRequest request,
+                                    @NonNull HttpServletResponse response,
+                                    @NonNull FilterChain filterChain)
         throws ServletException, IOException {
         String header = request.getHeader("Authorization");
         if (header == null || !header.startsWith("Bearer ")) {
@@ -33,10 +39,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
         try {
             CurrentUser tokenUser = jwtService.parseToken(header.substring(7));
+            // Check if token has been revoked
+            if (tokenUser.jti() != null && tokenBlacklist.isBlacklisted(tokenUser.jti())) {
+                SecurityContextHolder.clearContext();
+                filterChain.doFilter(request, response);
+                return;
+            }
             CurrentUser user = currentUserService.loadActiveUser(tokenUser.id());
             if (user != null) {
+                // Preserve jti and expiresAt from token for logout revocation
+                CurrentUser authenticatedUser = new CurrentUser(
+                    user.id(), user.username(), user.role(),
+                    tokenUser.jti(), tokenUser.expiresAt()
+                );
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                    user,
+                    authenticatedUser,
                     null,
                     List.of(new SimpleGrantedAuthority("ROLE_" + user.role()))
                 );
