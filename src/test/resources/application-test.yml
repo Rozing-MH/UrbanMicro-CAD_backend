@@ -4,8 +4,21 @@ spring:
     username: sa
     password:
     driver-class-name: org.h2.Driver
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema-h2.sql
+
+mybatis-plus:
+  db-type: H2
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
 
 app:
+  cors:
+    allowed-origins: http://localhost:5173
   jwt:
     secret: test-secret-test-secret-test-secret-test-secret
     expires-minutes: 60

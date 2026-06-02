@@ -18,10 +18,15 @@ public class JsonNodeTypeHandler extends BaseTypeHandler<JsonNode> {
 
     @Override
     public void setNonNullParameter(PreparedStatement ps, int i, JsonNode parameter, JdbcType jdbcType) throws SQLException {
-        PGobject jsonObject = new PGobject();
-        jsonObject.setType("jsonb");
-        jsonObject.setValue(parameter.toString());
-        ps.setObject(i, jsonObject);
+        String dbProductName = ps.getConnection().getMetaData().getDatabaseProductName();
+        if ("PostgreSQL".equalsIgnoreCase(dbProductName)) {
+            PGobject jsonObject = new PGobject();
+            jsonObject.setType("jsonb");
+            jsonObject.setValue(parameter.toString());
+            ps.setObject(i, jsonObject);
+        } else {
+            ps.setString(i, parameter.toString());
+        }
     }
 
     @Override
