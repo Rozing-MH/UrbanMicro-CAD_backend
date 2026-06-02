@@ -88,16 +88,26 @@ public class ProjectService {
         projectMapper.updateById(project);
     }
 
+    /**
+     * 保存工程快照。
+     * 并发安全：使用 SELECT ... FOR UPDATE 行锁防止并发保存冲突。
+     * 版本递增：依赖数据库触发器 trg_project_version_increment 自动 SET version = OLD.version + 1。
+     * 保存后重新读取工程以获取触发器更新的 version 值。
+     */
     @Transactional
     public ProjectDTO saveSnapshot(CurrentUser user, UUID id, SaveSnapshotRequest request) {
         validateSnapshotSize(request);
-        Project project = requireProject(user, id);
+        // SELECT FOR UPDATE 行锁：同一工程的并发保存请求串行执行
+        Project project = requireProjectForUpdate(user, id);
         OffsetDateTime now = OffsetDateTime.now();
         project.setTopologyData(request.topologyData());
         project.setRuleData(request.ruleData());
         project.setDescription(defaultString(request.description()));
         project.setUpdatedAt(now);
+        // version 不手动修改，由数据库触发器 trg_project_version_increment 自动递增
         projectMapper.updateById(project);
+
+        // 重新读取以获取触发器递增后的 version 值
         Project updatedProject = requireProject(user, id);
 
         ProjectSnapshot snapshot = new ProjectSnapshot();
@@ -125,9 +135,14 @@ public class ProjectService {
         return PageResponse.from(mpPage, s -> toSnapshotDto(s, false));
     }
 
+    /**
+     * 回滚到指定快照。
+     * 并发安全：使用 SELECT ... FOR UPDATE 行锁防止并发修改。
+     * 版本递增：依赖数据库触发器自动递增，回滚后重新读取 version。
+     */
     @Transactional
     public ProjectDTO restoreSnapshot(CurrentUser user, UUID projectId, UUID snapshotId) {
-        Project project = requireProject(user, projectId);
+        Project project = requireProjectForUpdate(user, projectId);
         ProjectSnapshot snapshot = requireSnapshot(projectId, snapshotId);
         JsonNode snapshotData = snapshot.getSnapshotData();
         JsonNode topologyData = requireSnapshotField(snapshotData, "topologyData");
@@ -136,7 +151,10 @@ public class ProjectService {
         project.setRuleData(ruleData);
         project.setDescription(defaultString(snapshot.getDescription()));
         project.setUpdatedAt(OffsetDateTime.now());
+        // version 不手动修改，由数据库触发器自动递增
         projectMapper.updateById(project);
+
+        // 重新读取以获取触发器递增后的 version 值
         return toDto(requireProject(user, projectId));
     }
 
@@ -190,6 +208,18 @@ public class ProjectService {
 
     public Project requireProject(CurrentUser user, UUID id) {
         Project project = projectMapper.selectOne(ownerQuery(user.id()).eq(Project::getId, id));
+        if (project == null) {
+            throw new ApiException(ErrorCode.NOT_FOUND, "工程不存在");
+        }
+        return project;
+    }
+
+    /**
+     * 查询工程并加行锁（SELECT ... FOR UPDATE），用于写操作事务内防止并发修改。
+     * 必须在 @Transactional 事务内调用。
+     */
+    private Project requireProjectForUpdate(CurrentUser user, UUID id) {
+        Project project = projectMapper.selectOneForUpdate(id, user.id());
         if (project == null) {
             throw new ApiException(ErrorCode.NOT_FOUND, "工程不存在");
         }

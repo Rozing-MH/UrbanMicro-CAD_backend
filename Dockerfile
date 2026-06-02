@@ -11,6 +11,12 @@ FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
 
+# Install font packages for PDF generation (Chinese character support)
+RUN apk add --no-cache font-noto-cjk
+
+# Create font directory for optional custom font mount
+RUN mkdir -p /app/fonts && chown 1001:1001 /app/fonts
+
 # Non-root user for security
 RUN addgroup -S app && adduser -S app -G app
 USER app

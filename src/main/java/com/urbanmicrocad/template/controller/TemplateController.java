@@ -8,6 +8,7 @@ import com.urbanmicrocad.template.dto.TemplateDTO;
 import com.urbanmicrocad.template.service.TemplateService;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -70,5 +71,15 @@ public class TemplateController {
         @AuthenticationPrincipal CurrentUser user
     ) {
         return ApiResponse.ok(templateService.get(id, user));
+    }
+
+    @DeleteMapping("/{id}")
+    public ApiResponse<Void> delete(
+        @AuthenticationPrincipal CurrentUser user,
+        @PathVariable UUID id
+    ) {
+        Objects.requireNonNull(user, "未认证用户不能删除模板");
+        templateService.deleteCustomTemplate(user, id);
+        return ApiResponse.ok();
     }
 }

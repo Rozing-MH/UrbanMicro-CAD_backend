@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.urbanmicrocad.common.exception.ApiException;
+import com.urbanmicrocad.common.exception.ErrorCode;
 import com.urbanmicrocad.common.security.CurrentUser;
 import com.urbanmicrocad.project.dto.SaveSnapshotRequest;
 import com.urbanmicrocad.project.entity.Project;
@@ -22,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -79,8 +81,12 @@ class ProjectServiceTest {
         UUID snapshotId = UUID.randomUUID();
         ProjectSnapshot snapshot = snapshot(project.getId(), 3, snapshotData("restored-road"));
         snapshot.setId(snapshotId);
-        when(projectMapper.selectOne(any(Wrapper.class))).thenReturn(project, project);
+        // requireProjectForUpdate 返回 project
+        when(projectMapper.selectOneForUpdate(project.getId(), user.id())).thenReturn(project);
+        // requireProject 重新读取（获取触发器递增后的 version）
+        when(projectMapper.selectOne(any(Wrapper.class))).thenReturn(project);
         when(snapshotMapper.selectOne(any(Wrapper.class))).thenReturn(snapshot);
+        when(projectMapper.updateById(any(Project.class))).thenReturn(1);
 
         service.restoreSnapshot(user, project.getId(), snapshotId);
 
@@ -98,7 +104,7 @@ class ProjectServiceTest {
         ProjectService service = new ProjectService(projectMapper, snapshotMapper, objectMapper);
         CurrentUser user = new CurrentUser(1L, "demo", "USER");
         Project project = project(user.id());
-        when(projectMapper.selectOne(any(Wrapper.class))).thenReturn(project);
+        when(projectMapper.selectOneForUpdate(project.getId(), user.id())).thenReturn(project);
         when(snapshotMapper.selectOne(any(Wrapper.class))).thenReturn(null);
 
         assertThatThrownBy(() -> service.restoreSnapshot(user, project.getId(), UUID.randomUUID()))
@@ -114,7 +120,7 @@ class ProjectServiceTest {
         CurrentUser user = new CurrentUser(1L, "demo", "USER");
         Project project = project(user.id());
         ProjectSnapshot snapshot = snapshot(project.getId(), 4, objectMapper.createObjectNode());
-        when(projectMapper.selectOne(any(Wrapper.class))).thenReturn(project);
+        when(projectMapper.selectOneForUpdate(project.getId(), user.id())).thenReturn(project);
         when(snapshotMapper.selectOne(any(Wrapper.class))).thenReturn(snapshot);
 
         assertThatThrownBy(() -> service.restoreSnapshot(user, project.getId(), snapshot.getId()))
@@ -155,6 +161,41 @@ class ProjectServiceTest {
         assertThatThrownBy(() -> service.getSnapshotByVersion(user, project.getId(), 99))
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("快照版本不存在");
+    }
+
+    @Test
+    void saveSnapshot_throwsNotFoundWhenProjectNotOwned() {
+        ProjectMapper projectMapper = mock(ProjectMapper.class);
+        ProjectSnapshotMapper snapshotMapper = mock(ProjectSnapshotMapper.class);
+        ProjectService service = new ProjectService(projectMapper, snapshotMapper, objectMapper);
+        CurrentUser user = new CurrentUser(1L, "demo", "USER");
+        UUID projectId = UUID.randomUUID();
+        // requireProjectForUpdate 返回 null → 工程不存在
+        when(projectMapper.selectOneForUpdate(projectId, user.id())).thenReturn(null);
+
+        SaveSnapshotRequest request = new SaveSnapshotRequest(
+            objectMapper.createObjectNode(), objectMapper.createObjectNode(), "test");
+
+        assertThatThrownBy(() -> service.saveSnapshot(user, projectId, request))
+            .isInstanceOf(ApiException.class)
+            .satisfies(ex -> assertThat(((ApiException) ex).getErrorCode()).isEqualTo(ErrorCode.NOT_FOUND))
+            .hasMessageContaining("工程不存在");
+    }
+
+    @Test
+    void restoreSnapshot_throwsNotFoundWhenProjectNotOwned() {
+        ProjectMapper projectMapper = mock(ProjectMapper.class);
+        ProjectSnapshotMapper snapshotMapper = mock(ProjectSnapshotMapper.class);
+        ProjectService service = new ProjectService(projectMapper, snapshotMapper, objectMapper);
+        CurrentUser user = new CurrentUser(1L, "demo", "USER");
+        UUID projectId = UUID.randomUUID();
+        // requireProjectForUpdate 返回 null → 工程不存在
+        when(projectMapper.selectOneForUpdate(projectId, user.id())).thenReturn(null);
+
+        assertThatThrownBy(() -> service.restoreSnapshot(user, projectId, UUID.randomUUID()))
+            .isInstanceOf(ApiException.class)
+            .satisfies(ex -> assertThat(((ApiException) ex).getErrorCode()).isEqualTo(ErrorCode.NOT_FOUND))
+            .hasMessageContaining("工程不存在");
     }
 
     private Project project(Long userId) {

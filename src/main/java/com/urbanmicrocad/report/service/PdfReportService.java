@@ -300,7 +300,7 @@ public class PdfReportService {
     }
 
     private BaseFont loadChineseBaseFont() {
-        // Try loading bundled font from classpath
+        // 1. Try loading bundled font from classpath (development)
         ClassPathResource fontResource = new ClassPathResource(FONT_PATH);
         if (fontResource.exists()) {
             try (InputStream is = fontResource.getInputStream()) {
@@ -308,10 +308,28 @@ public class PdfReportService {
                 return BaseFont.createFont(FONT_PATH, BaseFont.IDENTITY_H,
                     BaseFont.EMBEDDED, true, fontBytes, null);
             } catch (IOException e) {
-                log.warn("中文字体加载失败，将使用 Helvetica: {}", e.getMessage());
+                log.warn("类路径中文字体加载失败: {}", e.getMessage());
             }
         }
-        // Fallback to Helvetica
+
+        // 2. Try system font paths (Docker /app/fonts/ volume or OS font directories)
+        String[] systemFontPaths = {
+            "/app/fonts/SimHei.ttf",
+            "/app/fonts/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/truetype/noto-cjk/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+        };
+        for (String path : systemFontPaths) {
+            try {
+                return BaseFont.createFont(path, BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
+            } catch (Exception e) {
+                // Font not found at this path, try next
+            }
+        }
+
+        // 3. Fallback to Helvetica (Chinese characters will render as blank)
+        log.warn("未找到中文字体，PDF 中文字符将无法正常显示。"
+            + "请在 /app/fonts/ 目录放置 SimHei.ttf 或使用包含 Noto CJK 字体的 Docker 镜像。");
         try {
             return BaseFont.createFont(FALLBACK_FONT, BaseFont.WINANSI, BaseFont.EMBEDDED);
         } catch (Exception e) {

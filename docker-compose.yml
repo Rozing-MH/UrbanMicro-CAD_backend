@@ -24,6 +24,11 @@ services:
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
       SERVER_PORT: "8080"
+      SPRING_PROFILES_ACTIVE: prod
+    volumes:
+      # Optional: mount custom fonts for PDF generation
+      # Place SimHei.ttf or other CJK fonts in ./fonts/ on the host
+      - ./fonts:/app/fonts:ro
     ports:
       - "8080:8080"
     depends_on:

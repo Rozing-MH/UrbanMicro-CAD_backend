@@ -13,6 +13,7 @@ import com.urbanmicrocad.template.dto.TemplateDTO;
 import com.urbanmicrocad.template.entity.ProjectTemplate;
 import com.urbanmicrocad.template.mapper.TemplateMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -123,6 +124,28 @@ public class TemplateService {
         if (exists) {
             throw new ApiException(ErrorCode.BAD_REQUEST, "已存在同名自定义模板");
         }
+    }
+
+    /**
+     * 软删除用户自定义模板。仅模板所有者可删除，系统模板不可删除。
+     */
+    @Transactional
+    public void deleteCustomTemplate(CurrentUser user, UUID id) {
+        ProjectTemplate template = templateMapper.selectOne(new LambdaQueryWrapper<ProjectTemplate>()
+            .eq(ProjectTemplate::getId, id)
+            .eq(ProjectTemplate::getIsDeleted, false));
+        if (template == null) {
+            throw new ApiException(ErrorCode.NOT_FOUND, "模板不存在");
+        }
+        if (template.getUserId() == null) {
+            throw new ApiException(ErrorCode.FORBIDDEN, "系统模板不可删除");
+        }
+        if (!template.getUserId().equals(user.id())) {
+            throw new ApiException(ErrorCode.FORBIDDEN, "只能删除自己创建的模板");
+        }
+        template.setIsDeleted(true);
+        template.setUpdatedAt(OffsetDateTime.now());
+        templateMapper.updateById(template);
     }
 
     private JsonNode snapshotDataFromProfile(JsonNode profile) {
