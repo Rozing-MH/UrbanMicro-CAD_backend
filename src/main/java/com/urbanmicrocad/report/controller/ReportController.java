@@ -6,7 +6,7 @@ import com.urbanmicrocad.common.security.CurrentUser;
 import com.urbanmicrocad.report.dto.ExportReportRequest;
 import com.urbanmicrocad.report.dto.ReportDetailDTO;
 import com.urbanmicrocad.report.dto.ReportSummary;
-import com.urbanmicrocad.report.service.ReportService;
+import com.urbanmicrocad.report.service.IReportService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -23,9 +23,9 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/reports")
 public class ReportController {
-    private final ReportService reportService;
+    private final IReportService reportService;
 
-    public ReportController(ReportService reportService) {
+    public ReportController(IReportService reportService) {
         this.reportService = reportService;
     }
 

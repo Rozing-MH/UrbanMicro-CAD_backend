@@ -9,6 +9,17 @@ spring:
       "max-lifetime": 1800000         # 30 minutes
       "connection-timeout": 30000     # 30 seconds
       "leak-detection-threshold": 60000  # 1 minute — logs warning if connection held too long
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 3000
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 4
+          min-idle: 1
   jackson:
     default-property-inclusion: non_null
 

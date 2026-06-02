@@ -10,6 +10,7 @@ import com.urbanmicrocad.common.security.CurrentUser;
 import com.urbanmicrocad.project.dto.SaveSnapshotRequest;
 import com.urbanmicrocad.project.entity.Project;
 import com.urbanmicrocad.project.entity.ProjectSnapshot;
+import com.urbanmicrocad.project.converter.ProjectConverter;
 import com.urbanmicrocad.project.mapper.ProjectMapper;
 import com.urbanmicrocad.project.mapper.ProjectSnapshotMapper;
 import com.urbanmicrocad.project.service.ProjectService;
@@ -37,7 +38,7 @@ class ProjectServiceTest {
     void rejectsOversizedSnapshotBeforeDatabaseAccess() {
         ProjectMapper projectMapper = mock(ProjectMapper.class);
         ProjectSnapshotMapper snapshotMapper = mock(ProjectSnapshotMapper.class);
-        ProjectService service = new ProjectService(projectMapper, snapshotMapper, objectMapper);
+        ProjectService service = new ProjectService(projectMapper, snapshotMapper, objectMapper, new ProjectConverter());
         SaveSnapshotRequest request = new SaveSnapshotRequest(
             objectMapper.createObjectNode().put("payload", "x".repeat(2_000_001)),
             objectMapper.createObjectNode(),
@@ -54,7 +55,7 @@ class ProjectServiceTest {
     void listsSnapshotsForOwnedProject() {
         ProjectMapper projectMapper = mock(ProjectMapper.class);
         ProjectSnapshotMapper snapshotMapper = mock(ProjectSnapshotMapper.class);
-        ProjectService service = new ProjectService(projectMapper, snapshotMapper, objectMapper);
+        ProjectService service = new ProjectService(projectMapper, snapshotMapper, objectMapper, new ProjectConverter());
         CurrentUser user = new CurrentUser(1L, "demo", "USER");
         Project project = project(user.id());
         ProjectSnapshot snapshot = snapshot(project.getId(), 2, snapshotData("road-v2"));
@@ -75,7 +76,7 @@ class ProjectServiceTest {
     void restoresOwnedSnapshotIntoProject() {
         ProjectMapper projectMapper = mock(ProjectMapper.class);
         ProjectSnapshotMapper snapshotMapper = mock(ProjectSnapshotMapper.class);
-        ProjectService service = new ProjectService(projectMapper, snapshotMapper, objectMapper);
+        ProjectService service = new ProjectService(projectMapper, snapshotMapper, objectMapper, new ProjectConverter());
         CurrentUser user = new CurrentUser(1L, "demo", "USER");
         Project project = project(user.id());
         UUID snapshotId = UUID.randomUUID();
@@ -101,7 +102,7 @@ class ProjectServiceTest {
     void rejectsSnapshotRestoreWhenSnapshotDoesNotBelongToProject() {
         ProjectMapper projectMapper = mock(ProjectMapper.class);
         ProjectSnapshotMapper snapshotMapper = mock(ProjectSnapshotMapper.class);
-        ProjectService service = new ProjectService(projectMapper, snapshotMapper, objectMapper);
+        ProjectService service = new ProjectService(projectMapper, snapshotMapper, objectMapper, new ProjectConverter());
         CurrentUser user = new CurrentUser(1L, "demo", "USER");
         Project project = project(user.id());
         when(projectMapper.selectOneForUpdate(project.getId(), user.id())).thenReturn(project);
@@ -116,7 +117,7 @@ class ProjectServiceTest {
     void rejectsSnapshotRestoreWhenSnapshotDataIsIncomplete() {
         ProjectMapper projectMapper = mock(ProjectMapper.class);
         ProjectSnapshotMapper snapshotMapper = mock(ProjectSnapshotMapper.class);
-        ProjectService service = new ProjectService(projectMapper, snapshotMapper, objectMapper);
+        ProjectService service = new ProjectService(projectMapper, snapshotMapper, objectMapper, new ProjectConverter());
         CurrentUser user = new CurrentUser(1L, "demo", "USER");
         Project project = project(user.id());
         ProjectSnapshot snapshot = snapshot(project.getId(), 4, objectMapper.createObjectNode());
@@ -132,7 +133,7 @@ class ProjectServiceTest {
     void loadsSnapshotByVersionReadOnly() {
         ProjectMapper projectMapper = mock(ProjectMapper.class);
         ProjectSnapshotMapper snapshotMapper = mock(ProjectSnapshotMapper.class);
-        ProjectService service = new ProjectService(projectMapper, snapshotMapper, objectMapper);
+        ProjectService service = new ProjectService(projectMapper, snapshotMapper, objectMapper, new ProjectConverter());
         CurrentUser user = new CurrentUser(1L, "demo", "USER");
         Project project = project(user.id());
         ObjectNode snapshotData = snapshotData("version-load-test");
@@ -152,7 +153,7 @@ class ProjectServiceTest {
     void rejectsSnapshotByVersionWhenVersionNotFound() {
         ProjectMapper projectMapper = mock(ProjectMapper.class);
         ProjectSnapshotMapper snapshotMapper = mock(ProjectSnapshotMapper.class);
-        ProjectService service = new ProjectService(projectMapper, snapshotMapper, objectMapper);
+        ProjectService service = new ProjectService(projectMapper, snapshotMapper, objectMapper, new ProjectConverter());
         CurrentUser user = new CurrentUser(1L, "demo", "USER");
         Project project = project(user.id());
         when(projectMapper.selectOne(any(Wrapper.class))).thenReturn(project);
@@ -167,7 +168,7 @@ class ProjectServiceTest {
     void saveSnapshot_throwsNotFoundWhenProjectNotOwned() {
         ProjectMapper projectMapper = mock(ProjectMapper.class);
         ProjectSnapshotMapper snapshotMapper = mock(ProjectSnapshotMapper.class);
-        ProjectService service = new ProjectService(projectMapper, snapshotMapper, objectMapper);
+        ProjectService service = new ProjectService(projectMapper, snapshotMapper, objectMapper, new ProjectConverter());
         CurrentUser user = new CurrentUser(1L, "demo", "USER");
         UUID projectId = UUID.randomUUID();
         // requireProjectForUpdate 返回 null → 工程不存在
@@ -186,7 +187,7 @@ class ProjectServiceTest {
     void restoreSnapshot_throwsNotFoundWhenProjectNotOwned() {
         ProjectMapper projectMapper = mock(ProjectMapper.class);
         ProjectSnapshotMapper snapshotMapper = mock(ProjectSnapshotMapper.class);
-        ProjectService service = new ProjectService(projectMapper, snapshotMapper, objectMapper);
+        ProjectService service = new ProjectService(projectMapper, snapshotMapper, objectMapper, new ProjectConverter());
         CurrentUser user = new CurrentUser(1L, "demo", "USER");
         UUID projectId = UUID.randomUUID();
         // requireProjectForUpdate 返回 null → 工程不存在

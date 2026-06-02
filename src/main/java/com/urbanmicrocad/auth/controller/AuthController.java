@@ -3,7 +3,7 @@ package com.urbanmicrocad.auth.controller;
 import com.urbanmicrocad.auth.dto.LoginRequest;
 import com.urbanmicrocad.auth.dto.LoginResponse;
 import com.urbanmicrocad.auth.dto.RegisterRequest;
-import com.urbanmicrocad.auth.service.AuthService;
+import com.urbanmicrocad.auth.service.IAuthService;
 import com.urbanmicrocad.common.response.ApiResponse;
 import com.urbanmicrocad.common.security.CurrentUser;
 import jakarta.servlet.http.HttpServletRequest;
@@ -18,9 +18,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
-    private final AuthService authService;
+    private final IAuthService authService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(IAuthService authService) {
         this.authService = authService;
     }
 

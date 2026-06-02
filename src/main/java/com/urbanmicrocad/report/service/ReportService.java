@@ -8,7 +8,8 @@ import com.urbanmicrocad.common.exception.ApiException;
 import com.urbanmicrocad.common.exception.ErrorCode;
 import com.urbanmicrocad.common.response.PageResponse;
 import com.urbanmicrocad.common.security.CurrentUser;
-import com.urbanmicrocad.project.service.ProjectService;
+import com.urbanmicrocad.project.service.IProjectService;
+import com.urbanmicrocad.report.converter.ReportConverter;
 import com.urbanmicrocad.report.dto.ExportReportRequest;
 import com.urbanmicrocad.report.dto.ReportDetailDTO;
 import com.urbanmicrocad.report.dto.ReportSummary;
@@ -27,26 +28,31 @@ import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
 @Service
-public class ReportService {
+public class ReportService implements IReportService {
     private static final int MAX_LIST_SIZE = 100;
     private static final int MAX_REPORT_JSON_CHARS = 2_000_000;
 
     private final EvaluationReportMapper reportMapper;
-    private final ProjectService projectService;
+    private final IProjectService projectService;
     private final PdfReportService pdfReportService;
+    private final ReportConverter reportConverter;
 
-    public ReportService(EvaluationReportMapper reportMapper, ProjectService projectService, PdfReportService pdfReportService) {
+    public ReportService(EvaluationReportMapper reportMapper, IProjectService projectService,
+                         PdfReportService pdfReportService, ReportConverter reportConverter) {
         this.reportMapper = reportMapper;
         this.projectService = projectService;
         this.pdfReportService = pdfReportService;
+        this.reportConverter = reportConverter;
     }
 
+    @Override
     @Transactional
     public ReportSummary generate(CurrentUser user, ExportReportRequest request) {
         validatePayloadSize(request);
         return createAndSave(user, request);
     }
 
+    @Override
     public PageResponse<ReportSummary> list(CurrentUser user, UUID projectId, int page, int size) {
         projectService.requireProject(user, projectId);
         int safePage = Math.max(page, 1);
@@ -57,9 +63,10 @@ public class ReportService {
                 .eq(EvaluationReport::getProjectId, projectId)
                 .eq(EvaluationReport::getIsDeleted, false)
                 .orderByDesc(EvaluationReport::getGeneratedAt));
-        return PageResponse.from(mpPage, this::toSummary);
+        return PageResponse.from(mpPage, reportConverter::toSummary);
     }
 
+    @Override
     public ResponseEntity<byte[]> export(CurrentUser user, ExportReportRequest request) {
         validatePayloadSize(request);
         ReportSummary summary = createAndSave(user, request);
@@ -71,16 +78,18 @@ public class ReportService {
         return csvResponse(csv, "urbanmicro-report-" + summary.id() + ".csv");
     }
 
+    @Override
     public ResponseEntity<byte[]> download(CurrentUser user, UUID reportId) {
         EvaluationReport report = requireReport(user, reportId);
-        ReportSummary summary = toSummary(report);
+        ReportSummary summary = reportConverter.toSummary(report);
         byte[] csv = csvFor(summary, null).getBytes(StandardCharsets.UTF_8);
         return csvResponse(csv, "urbanmicro-report-" + report.getId() + ".csv");
     }
 
+    @Override
     public ResponseEntity<byte[]> downloadPdf(CurrentUser user, UUID reportId) {
         EvaluationReport report = requireReport(user, reportId);
-        ReportSummary summary = toSummary(report);
+        ReportSummary summary = reportConverter.toSummary(report);
         ExportReportRequest request = new ExportReportRequest(
             report.getProjectId(), "PDF",
             null, report.getLaneMetrics(), report.getIntersectionLos(),
@@ -90,20 +99,10 @@ public class ReportService {
         return pdfResponse(pdf, "urbanmicro-report-" + report.getId() + ".pdf");
     }
 
+    @Override
     public ReportDetailDTO detail(CurrentUser user, UUID reportId) {
         EvaluationReport report = requireReport(user, reportId);
-        double avgDelay = LosCalculator.averageDelay(report.getIntersectionLos());
-        return new ReportDetailDTO(
-            report.getId(),
-            report.getProjectId(),
-            report.getGeneratedAt(),
-            LosCalculator.losGrade(avgDelay),
-            avgDelay,
-            report.getLaneMetrics(),
-            report.getIntersectionLos(),
-            report.getHeatmapConfig(),
-            report.getFlightLineData()
-        );
+        return reportConverter.toDetail(report);
     }
 
     private EvaluationReport requireReport(CurrentUser user, UUID reportId) {
@@ -121,7 +120,7 @@ public class ReportService {
         projectService.requireProject(user, request.projectId());
         EvaluationReport report = createReport(user, request);
         reportMapper.insert(report);
-        return toSummary(report);
+        return reportConverter.toSummary(report);
     }
 
     private EvaluationReport createReport(CurrentUser user, ExportReportRequest request) {
@@ -139,17 +138,6 @@ public class ReportService {
         report.setUpdatedAt(now);
         report.setIsDeleted(false);
         return report;
-    }
-
-    private ReportSummary toSummary(EvaluationReport report) {
-        double avgDelay = LosCalculator.averageDelay(report.getIntersectionLos());
-        return new ReportSummary(
-            report.getId(),
-            report.getProjectId(),
-            report.getGeneratedAt(),
-            LosCalculator.losGrade(avgDelay),
-            avgDelay
-        );
     }
 
     private ResponseEntity<byte[]> csvResponse(byte[] csv, String filename) {

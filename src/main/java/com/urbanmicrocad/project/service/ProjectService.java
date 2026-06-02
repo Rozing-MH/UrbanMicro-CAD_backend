@@ -10,6 +10,7 @@ import com.urbanmicrocad.common.exception.ApiException;
 import com.urbanmicrocad.common.exception.ErrorCode;
 import com.urbanmicrocad.common.security.CurrentUser;
 import com.urbanmicrocad.common.response.PageResponse;
+import com.urbanmicrocad.project.converter.ProjectConverter;
 import com.urbanmicrocad.project.dto.CreateProjectRequest;
 import com.urbanmicrocad.project.dto.ProjectDTO;
 import com.urbanmicrocad.project.dto.ProjectSnapshotDTO;
@@ -27,27 +28,32 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Service
-public class ProjectService {
+public class ProjectService implements IProjectService {
     private static final int MAX_LIST_SIZE = 100;
     private static final int MAX_SNAPSHOT_JSON_CHARS = 2_000_000;
 
     private final ProjectMapper projectMapper;
     private final ProjectSnapshotMapper snapshotMapper;
     private final ObjectMapper objectMapper;
+    private final ProjectConverter projectConverter;
 
-    public ProjectService(ProjectMapper projectMapper, ProjectSnapshotMapper snapshotMapper, ObjectMapper objectMapper) {
+    public ProjectService(ProjectMapper projectMapper, ProjectSnapshotMapper snapshotMapper,
+                          ObjectMapper objectMapper, ProjectConverter projectConverter) {
         this.projectMapper = projectMapper;
         this.snapshotMapper = snapshotMapper;
         this.objectMapper = objectMapper;
+        this.projectConverter = projectConverter;
     }
 
+    @Override
     public PageResponse<ProjectSummaryDTO> list(CurrentUser user, int page, int size) {
         int safePage = Math.max(page, 1);
         int safeSize = Math.clamp(size, 1, MAX_LIST_SIZE);
         Page<Project> mpPage = projectMapper.selectPage(new Page<>(safePage, safeSize), ownerQuery(user.id()));
-        return PageResponse.from(mpPage, this::toSummaryDto);
+        return PageResponse.from(mpPage, projectConverter::toSummaryDto);
     }
 
+    @Override
     @Transactional
     public ProjectDTO create(CurrentUser user, CreateProjectRequest request) {
         OffsetDateTime now = OffsetDateTime.now();
@@ -63,13 +69,15 @@ public class ProjectService {
         project.setUpdatedAt(now);
         project.setIsDeleted(false);
         projectMapper.insert(project);
-        return toDto(project);
+        return projectConverter.toDto(project);
     }
 
+    @Override
     public ProjectDTO get(CurrentUser user, UUID id) {
-        return toDto(requireProject(user, id));
+        return projectConverter.toDto(requireProject(user, id));
     }
 
+    @Override
     @Transactional
     public ProjectDTO update(CurrentUser user, UUID id, UpdateProjectRequest request) {
         Project project = requireProject(user, id);
@@ -77,9 +85,10 @@ public class ProjectService {
         project.setDescription(defaultString(request.description()));
         project.setUpdatedAt(OffsetDateTime.now());
         projectMapper.updateById(project);
-        return toDto(project);
+        return projectConverter.toDto(project);
     }
 
+    @Override
     @Transactional
     public void delete(CurrentUser user, UUID id) {
         Project project = requireProject(user, id);
@@ -94,6 +103,7 @@ public class ProjectService {
      * 版本递增：依赖数据库触发器 trg_project_version_increment 自动 SET version = OLD.version + 1。
      * 保存后重新读取工程以获取触发器更新的 version 值。
      */
+    @Override
     @Transactional
     public ProjectDTO saveSnapshot(CurrentUser user, UUID id, SaveSnapshotRequest request) {
         validateSnapshotSize(request);
@@ -120,9 +130,10 @@ public class ProjectService {
         snapshot.setUpdatedAt(now);
         snapshot.setIsDeleted(false);
         snapshotMapper.insert(snapshot);
-        return toDto(updatedProject);
+        return projectConverter.toDto(updatedProject);
     }
 
+    @Override
     public PageResponse<ProjectSnapshotDTO> listSnapshots(CurrentUser user, UUID projectId, int page, int size) {
         requireProject(user, projectId);
         int safePage = Math.max(page, 1);
@@ -132,7 +143,7 @@ public class ProjectService {
                 .eq(ProjectSnapshot::getProjectId, projectId)
                 .eq(ProjectSnapshot::getIsDeleted, false)
                 .orderByDesc(ProjectSnapshot::getVersion));
-        return PageResponse.from(mpPage, s -> toSnapshotDto(s, false));
+        return PageResponse.from(mpPage, s -> projectConverter.toSnapshotDto(s, false));
     }
 
     /**
@@ -140,6 +151,7 @@ public class ProjectService {
      * 并发安全：使用 SELECT ... FOR UPDATE 行锁防止并发修改。
      * 版本递增：依赖数据库触发器自动递增，回滚后重新读取 version。
      */
+    @Override
     @Transactional
     public ProjectDTO restoreSnapshot(CurrentUser user, UUID projectId, UUID snapshotId) {
         Project project = requireProjectForUpdate(user, projectId);
@@ -155,13 +167,14 @@ public class ProjectService {
         projectMapper.updateById(project);
 
         // 重新读取以获取触发器递增后的 version 值
-        return toDto(requireProject(user, projectId));
+        return projectConverter.toDto(requireProject(user, projectId));
     }
 
     /**
      * 按版本号加载快照数据（只读，不修改工程当前状态）。
      * 对齐设计文档 GET /api/projects/{id}/snapshots/{version}。
      */
+    @Override
     public ProjectDTO getSnapshotByVersion(CurrentUser user, UUID projectId, int version) {
         requireProject(user, projectId);
         ProjectSnapshot snapshot = snapshotMapper.selectOne(new LambdaQueryWrapper<ProjectSnapshot>()
@@ -206,6 +219,7 @@ public class ProjectService {
         return null;
     }
 
+    @Override
     public Project requireProject(CurrentUser user, UUID id) {
         Project project = projectMapper.selectOne(ownerQuery(user.id()).eq(Project::getId, id));
         if (project == null) {
@@ -242,46 +256,6 @@ public class ProjectService {
             .eq(Project::getUserId, userId)
             .eq(Project::getIsDeleted, false)
             .orderByDesc(Project::getUpdatedAt);
-    }
-
-    private ProjectDTO toDto(Project project) {
-        return new ProjectDTO(
-            project.getId(),
-            project.getName(),
-            defaultString(project.getDescription()),
-            project.getTopologyData() == null ? JsonNodeTypeHandler.emptyObject() : project.getTopologyData(),
-            project.getRuleData() == null ? defaultRuleData() : project.getRuleData(),
-            project.getVersion(),
-            project.getCreatedAt(),
-            project.getUpdatedAt(),
-            project.getUserId() == null ? null : project.getUserId().toString(),
-            null
-        );
-    }
-
-    private ProjectSummaryDTO toSummaryDto(Project project) {
-        return new ProjectSummaryDTO(
-            project.getId(),
-            project.getName(),
-            defaultString(project.getDescription()),
-            project.getVersion(),
-            project.getCreatedAt(),
-            project.getUpdatedAt(),
-            project.getUserId() == null ? null : project.getUserId().toString(),
-            null
-        );
-    }
-
-    private ProjectSnapshotDTO toSnapshotDto(ProjectSnapshot snapshot, boolean includeData) {
-        return new ProjectSnapshotDTO(
-            snapshot.getId(),
-            snapshot.getProjectId(),
-            snapshot.getVersion(),
-            defaultString(snapshot.getDescription()),
-            snapshot.getCreatedAt(),
-            snapshot.getUpdatedAt(),
-            includeData ? snapshot.getSnapshotData() : null
-        );
     }
 
     private JsonNode requireSnapshotField(JsonNode snapshotData, String fieldName) {

@@ -5,7 +5,7 @@ import com.urbanmicrocad.common.response.ApiResponse;
 import com.urbanmicrocad.common.security.CurrentUser;
 import com.urbanmicrocad.template.dto.SaveCustomTemplateRequest;
 import com.urbanmicrocad.template.dto.TemplateDTO;
-import com.urbanmicrocad.template.service.TemplateService;
+import com.urbanmicrocad.template.service.ITemplateService;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -24,9 +24,9 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/templates")
 public class TemplateController {
-    private final TemplateService templateService;
+    private final ITemplateService templateService;
 
-    public TemplateController(TemplateService templateService) {
+    public TemplateController(ITemplateService templateService) {
         this.templateService = templateService;
     }
 

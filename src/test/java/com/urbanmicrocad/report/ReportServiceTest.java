@@ -3,7 +3,8 @@ package com.urbanmicrocad.report;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.urbanmicrocad.common.exception.ApiException;
 import com.urbanmicrocad.common.security.CurrentUser;
-import com.urbanmicrocad.project.service.ProjectService;
+import com.urbanmicrocad.project.service.IProjectService;
+import com.urbanmicrocad.report.converter.ReportConverter;
 import com.urbanmicrocad.report.dto.ExportReportRequest;
 import com.urbanmicrocad.report.mapper.EvaluationReportMapper;
 import com.urbanmicrocad.report.service.PdfReportService;
@@ -22,9 +23,9 @@ class ReportServiceTest {
     void rejectsOversizedReportPayloadBeforeProjectLookup() {
         ObjectMapper objectMapper = new ObjectMapper();
         EvaluationReportMapper reportMapper = mock(EvaluationReportMapper.class);
-        ProjectService projectService = mock(ProjectService.class);
+        IProjectService projectService = mock(IProjectService.class);
         PdfReportService pdfReportService = mock(PdfReportService.class);
-        ReportService service = new ReportService(reportMapper, projectService, pdfReportService);
+        ReportService service = new ReportService(reportMapper, projectService, pdfReportService, new ReportConverter());
         ExportReportRequest request = new ExportReportRequest(
             UUID.randomUUID(),
             "CSV",

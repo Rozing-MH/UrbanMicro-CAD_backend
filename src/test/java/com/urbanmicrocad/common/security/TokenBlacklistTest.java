@@ -10,10 +10,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DisplayName("TokenBlacklist revocation tests")
 class TokenBlacklistTest {
 
+    private final TokenBlacklist.InMemoryTokenBlacklist blacklist = new TokenBlacklist.InMemoryTokenBlacklist();
+
     @Test
     @DisplayName("blacklisted token is detected")
     void blacklistedTokenDetected() {
-        TokenBlacklist blacklist = new TokenBlacklist();
         String jti = "test-jti-123";
         Instant expiresAt = Instant.now().plusSeconds(3600);
 
@@ -25,24 +26,18 @@ class TokenBlacklistTest {
     @Test
     @DisplayName("non-blacklisted token is not detected")
     void nonBlacklistedTokenNotDetected() {
-        TokenBlacklist blacklist = new TokenBlacklist();
-
         assertThat(blacklist.isBlacklisted("unknown-jti")).isFalse();
     }
 
     @Test
     @DisplayName("null jti is not blacklisted")
     void nullJtiNotBlacklisted() {
-        TokenBlacklist blacklist = new TokenBlacklist();
-
         assertThat(blacklist.isBlacklisted(null)).isFalse();
     }
 
     @Test
     @DisplayName("cleanup removes expired entries")
     void cleanupRemovesExpiredEntries() {
-        TokenBlacklist blacklist = new TokenBlacklist();
-
         // Add an already-expired token
         blacklist.add("expired-jti", Instant.now().minusSeconds(1));
         // Add a still-valid token
@@ -58,7 +53,6 @@ class TokenBlacklistTest {
     @Test
     @DisplayName("same jti can be added multiple times (idempotent)")
     void sameJtiIdempotent() {
-        TokenBlacklist blacklist = new TokenBlacklist();
         Instant expiresAt = Instant.now().plusSeconds(3600);
 
         blacklist.add("jti-1", expiresAt);

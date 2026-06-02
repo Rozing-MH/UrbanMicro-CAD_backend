@@ -20,7 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 
 @Service
-public class AuthService {
+public class AuthService implements IAuthService {
     private final SysUserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
@@ -34,6 +34,7 @@ public class AuthService {
         this.tokenBlacklist = tokenBlacklist;
     }
 
+    @Override
     @Transactional
     public void register(RegisterRequest request) {
         SysUser existing = userMapper.selectOne(activeUserQuery(request.username()));
@@ -52,6 +53,7 @@ public class AuthService {
         }
     }
 
+    @Override
     public LoginResponse login(LoginRequest request) {
         SysUser user = userMapper.selectOne(activeUserQuery(request.username()));
         if (user == null || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
@@ -61,6 +63,7 @@ public class AuthService {
         return toLoginResponse(currentUser, jwtService.generateToken(currentUser));
     }
 
+    @Override
     public LoginResponse me(CurrentUser user, String bearerToken) {
         String token = bearerToken != null && bearerToken.startsWith("Bearer ") ? bearerToken.substring(7) : "";
         return toLoginResponse(user, token);
@@ -69,6 +72,7 @@ public class AuthService {
     /**
      * Logout: add the current token to the blacklist so it cannot be reused.
      */
+    @Override
     public void logout(CurrentUser user) {
         if (user.jti() != null && user.expiresAt() != null) {
             tokenBlacklist.add(user.jti(), Instant.ofEpochMilli(user.expiresAt()));

@@ -9,7 +9,7 @@ import com.urbanmicrocad.project.dto.ProjectSnapshotDTO;
 import com.urbanmicrocad.project.dto.ProjectSummaryDTO;
 import com.urbanmicrocad.project.dto.SaveSnapshotRequest;
 import com.urbanmicrocad.project.dto.UpdateProjectRequest;
-import com.urbanmicrocad.project.service.ProjectService;
+import com.urbanmicrocad.project.service.IProjectService;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -27,9 +27,9 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/projects")
 public class ProjectController {
-    private final ProjectService projectService;
+    private final IProjectService projectService;
 
-    public ProjectController(ProjectService projectService) {
+    public ProjectController(IProjectService projectService) {
         this.projectService = projectService;
     }
 

@@ -3,6 +3,7 @@ package com.urbanmicrocad.template;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.urbanmicrocad.common.exception.ApiException;
 import com.urbanmicrocad.template.dto.TemplateDTO;
+import com.urbanmicrocad.template.converter.TemplateConverter;
 import com.urbanmicrocad.template.mapper.TemplateMapper;
 import com.urbanmicrocad.template.service.TemplateService;
 import org.junit.jupiter.api.Test;
@@ -20,7 +21,7 @@ class TemplateServiceTest {
     @Test
     void returnsBuiltInRoadSectionTemplatesWithoutQueryingDatabase() {
         TemplateMapper mapper = mock(TemplateMapper.class);
-        TemplateService service = new TemplateService(mapper);
+        TemplateService service = new TemplateService(mapper, new TemplateConverter());
 
         List<TemplateDTO> templates = service.list("ROAD_SECTION", null);
 
@@ -41,7 +42,7 @@ class TemplateServiceTest {
     @Test
     void returnsCrossSectionByProfileId() {
         TemplateMapper mapper = mock(TemplateMapper.class);
-        TemplateService service = new TemplateService(mapper);
+        TemplateService service = new TemplateService(mapper, new TemplateConverter());
 
         assertThat(service.getCrossSection("default-2lane").get("id").asText()).isEqualTo("default-2lane");
         verifyNoInteractions(mapper);
@@ -50,7 +51,7 @@ class TemplateServiceTest {
     @Test
     void throwsNotFoundForUnknownCrossSectionId() {
         TemplateMapper mapper = mock(TemplateMapper.class);
-        TemplateService service = new TemplateService(mapper);
+        TemplateService service = new TemplateService(mapper, new TemplateConverter());
 
         assertThatThrownBy(() -> service.getCrossSection("missing-profile"))
             .isInstanceOf(ApiException.class)
@@ -61,7 +62,7 @@ class TemplateServiceTest {
     @Test
     void returnsEmptyListForUnknownCategoryWithoutQueryingDatabase() {
         TemplateMapper mapper = mock(TemplateMapper.class);
-        TemplateService service = new TemplateService(mapper);
+        TemplateService service = new TemplateService(mapper, new TemplateConverter());
 
         assertThat(service.list("UNKNOWN_CATEGORY", null)).isEqualTo(List.of());
         verifyNoInteractions(mapper);
