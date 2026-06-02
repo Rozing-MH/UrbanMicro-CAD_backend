@@ -15,6 +15,7 @@ import com.urbanmicrocad.project.mapper.ProjectMapper;
 import com.urbanmicrocad.project.mapper.ProjectSnapshotMapper;
 import com.urbanmicrocad.report.controller.ReportController;
 import com.urbanmicrocad.report.dto.ExportReportRequest;
+import com.urbanmicrocad.report.dto.ReportDetailDTO;
 import com.urbanmicrocad.report.dto.ReportSummary;
 import com.urbanmicrocad.report.mapper.EvaluationReportMapper;
 import com.urbanmicrocad.report.service.ReportService;
@@ -181,6 +182,52 @@ class ReportControllerTest {
             .thenThrow(new ApiException(ErrorCode.NOT_FOUND, "报表不存在"));
 
         mockMvc.perform(get("/api/reports/{id}/download", reportId)
+                .with(MockAuth.withUser(user)))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value(404));
+    }
+
+    @Test
+    @DisplayName("POST /api/reports/export — PDF导出成功")
+    void export_pdf_success() throws Exception {
+        byte[] pdf = "%PDF-1.4 test content".getBytes(StandardCharsets.UTF_8);
+        ResponseEntity<byte[]> response = ResponseEntity.ok()
+            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"report.pdf\"")
+            .contentType(MediaType.APPLICATION_PDF)
+            .body(pdf);
+        when(reportService.export(any(CurrentUser.class), any(ExportReportRequest.class)))
+            .thenReturn(response);
+
+        mockMvc.perform(post("/api/reports/export")
+                .with(MockAuth.withUser(user))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"projectId\":\"" + projectId + "\",\"format\":\"PDF\"}"))
+            .andExpect(status().isOk())
+            .andExpect(header().string(HttpHeaders.CONTENT_TYPE, org.hamcrest.Matchers.containsString("application/pdf")));
+    }
+
+    @Test
+    @DisplayName("GET /api/reports/{id} — 报表详情")
+    void detail_success() throws Exception {
+        ReportDetailDTO detail = new ReportDetailDTO(
+            reportId, projectId, OffsetDateTime.now(), "C", 0.0, null, null, null, null
+        );
+        when(reportService.detail(user, reportId)).thenReturn(detail);
+
+        mockMvc.perform(get("/api/reports/{id}", reportId)
+                .with(MockAuth.withUser(user)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.code").value(200))
+            .andExpect(jsonPath("$.data.id").value(reportId.toString()));
+    }
+
+    @Test
+    @DisplayName("GET /api/reports/{id} — 报表不存在返回404")
+    void detail_notFound_returns404() throws Exception {
+        when(reportService.detail(user, reportId))
+            .thenThrow(new ApiException(ErrorCode.NOT_FOUND, "报表不存在"));
+
+        mockMvc.perform(get("/api/reports/{id}", reportId)
                 .with(MockAuth.withUser(user)))
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.code").value(404));

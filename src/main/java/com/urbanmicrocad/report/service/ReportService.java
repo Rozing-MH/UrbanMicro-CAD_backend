@@ -9,6 +9,7 @@ import com.urbanmicrocad.common.exception.ErrorCode;
 import com.urbanmicrocad.common.security.CurrentUser;
 import com.urbanmicrocad.project.service.ProjectService;
 import com.urbanmicrocad.report.dto.ExportReportRequest;
+import com.urbanmicrocad.report.dto.ReportDetailDTO;
 import com.urbanmicrocad.report.dto.ReportSummary;
 import com.urbanmicrocad.report.entity.EvaluationReport;
 import com.urbanmicrocad.report.mapper.EvaluationReportMapper;
@@ -32,10 +33,12 @@ public class ReportService {
 
     private final EvaluationReportMapper reportMapper;
     private final ProjectService projectService;
+    private final PdfReportService pdfReportService;
 
-    public ReportService(EvaluationReportMapper reportMapper, ProjectService projectService) {
+    public ReportService(EvaluationReportMapper reportMapper, ProjectService projectService, PdfReportService pdfReportService) {
         this.reportMapper = reportMapper;
         this.projectService = projectService;
+        this.pdfReportService = pdfReportService;
     }
 
     @Transactional
@@ -59,15 +62,50 @@ public class ReportService {
 
     public ResponseEntity<byte[]> export(CurrentUser user, ExportReportRequest request) {
         validatePayloadSize(request);
-        if ("PDF".equalsIgnoreCase(request.format())) {
-            throw new ApiException(ErrorCode.BAD_REQUEST, "PDF 报表导出将在后续版本实现，请先使用 CSV。 ");
-        }
         ReportSummary summary = createAndSave(user, request);
+        if ("PDF".equalsIgnoreCase(request.format())) {
+            byte[] pdf = pdfReportService.generatePdf(request, summary);
+            return pdfResponse(pdf, "urbanmicro-report-" + summary.id() + ".pdf");
+        }
         byte[] csv = csvFor(summary, request).getBytes(StandardCharsets.UTF_8);
         return csvResponse(csv, "urbanmicro-report-" + summary.id() + ".csv");
     }
 
     public ResponseEntity<byte[]> download(CurrentUser user, UUID reportId) {
+        EvaluationReport report = requireReport(user, reportId);
+        ReportSummary summary = toSummary(report);
+        byte[] csv = csvFor(summary, null).getBytes(StandardCharsets.UTF_8);
+        return csvResponse(csv, "urbanmicro-report-" + report.getId() + ".csv");
+    }
+
+    public ResponseEntity<byte[]> downloadPdf(CurrentUser user, UUID reportId) {
+        EvaluationReport report = requireReport(user, reportId);
+        ReportSummary summary = toSummary(report);
+        ExportReportRequest request = new ExportReportRequest(
+            report.getProjectId(), "PDF",
+            null, report.getLaneMetrics(), report.getIntersectionLos(),
+            report.getHeatmapConfig(), report.getFlightLineData(), null
+        );
+        byte[] pdf = pdfReportService.generatePdf(request, summary);
+        return pdfResponse(pdf, "urbanmicro-report-" + report.getId() + ".pdf");
+    }
+
+    public ReportDetailDTO detail(CurrentUser user, UUID reportId) {
+        EvaluationReport report = requireReport(user, reportId);
+        return new ReportDetailDTO(
+            report.getId(),
+            report.getProjectId(),
+            report.getGeneratedAt(),
+            "C",
+            0,
+            report.getLaneMetrics(),
+            report.getIntersectionLos(),
+            report.getHeatmapConfig(),
+            report.getFlightLineData()
+        );
+    }
+
+    private EvaluationReport requireReport(CurrentUser user, UUID reportId) {
         EvaluationReport report = reportMapper.selectOne(new LambdaQueryWrapper<EvaluationReport>()
             .eq(EvaluationReport::getId, reportId)
             .eq(EvaluationReport::getUserId, user.id())
@@ -75,9 +113,7 @@ public class ReportService {
         if (report == null) {
             throw new ApiException(ErrorCode.NOT_FOUND, "报表不存在");
         }
-        ReportSummary summary = toSummary(report);
-        byte[] csv = csvFor(summary, null).getBytes(StandardCharsets.UTF_8);
-        return csvResponse(csv, "urbanmicro-report-" + report.getId() + ".csv");
+        return report;
     }
 
     private ReportSummary createAndSave(CurrentUser user, ExportReportRequest request) {
@@ -119,6 +155,13 @@ public class ReportService {
         headers.setContentType(new MediaType("text", "csv", StandardCharsets.UTF_8));
         headers.setContentDisposition(ContentDisposition.attachment().filename(filename, StandardCharsets.UTF_8).build());
         return ResponseEntity.ok().headers(headers).body(csv);
+    }
+
+    private ResponseEntity<byte[]> pdfResponse(byte[] pdf, String filename) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_PDF);
+        headers.setContentDisposition(ContentDisposition.attachment().filename(filename, StandardCharsets.UTF_8).build());
+        return ResponseEntity.ok().headers(headers).body(pdf);
     }
 
     private String csvFor(ReportSummary summary, ExportReportRequest request) {

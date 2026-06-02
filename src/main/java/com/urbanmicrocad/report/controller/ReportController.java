@@ -3,6 +3,7 @@ package com.urbanmicrocad.report.controller;
 import com.urbanmicrocad.common.response.ApiResponse;
 import com.urbanmicrocad.common.security.CurrentUser;
 import com.urbanmicrocad.report.dto.ExportReportRequest;
+import com.urbanmicrocad.report.dto.ReportDetailDTO;
 import com.urbanmicrocad.report.dto.ReportSummary;
 import com.urbanmicrocad.report.service.ReportService;
 import jakarta.validation.Valid;
@@ -44,6 +45,14 @@ public class ReportController {
         return ApiResponse.ok(reportService.list(user, projectId));
     }
 
+    @GetMapping("/{id}")
+    public ApiResponse<ReportDetailDTO> detail(
+        @AuthenticationPrincipal CurrentUser user,
+        @PathVariable UUID id
+    ) {
+        return ApiResponse.ok(reportService.detail(user, id));
+    }
+
     @PostMapping("/export")
     public ResponseEntity<byte[]> export(
         @AuthenticationPrincipal CurrentUser user,
@@ -55,5 +64,10 @@ public class ReportController {
     @GetMapping("/{id}/download")
     public ResponseEntity<byte[]> download(@AuthenticationPrincipal CurrentUser user, @PathVariable UUID id) {
         return reportService.download(user, id);
+    }
+
+    @GetMapping("/{id}/download-pdf")
+    public ResponseEntity<byte[]> downloadPdf(@AuthenticationPrincipal CurrentUser user, @PathVariable UUID id) {
+        return reportService.downloadPdf(user, id);
     }
 }

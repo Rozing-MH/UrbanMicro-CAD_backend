@@ -7,3 +7,7 @@ target/
 .idea/
 .vscode/
 .DS_Store
+# Font files are large; download separately or install from system fonts
+src/main/resources/fonts/*.ttf
+src/main/resources/fonts/*.ttc
+src/main/resources/fonts/*.otf

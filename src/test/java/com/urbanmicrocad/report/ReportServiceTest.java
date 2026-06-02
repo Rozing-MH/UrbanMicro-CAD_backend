@@ -6,6 +6,7 @@ import com.urbanmicrocad.common.security.CurrentUser;
 import com.urbanmicrocad.project.service.ProjectService;
 import com.urbanmicrocad.report.dto.ExportReportRequest;
 import com.urbanmicrocad.report.mapper.EvaluationReportMapper;
+import com.urbanmicrocad.report.service.PdfReportService;
 import com.urbanmicrocad.report.service.ReportService;
 import org.junit.jupiter.api.Test;
 
@@ -22,7 +23,8 @@ class ReportServiceTest {
         ObjectMapper objectMapper = new ObjectMapper();
         EvaluationReportMapper reportMapper = mock(EvaluationReportMapper.class);
         ProjectService projectService = mock(ProjectService.class);
-        ReportService service = new ReportService(reportMapper, projectService);
+        PdfReportService pdfReportService = mock(PdfReportService.class);
+        ReportService service = new ReportService(reportMapper, projectService, pdfReportService);
         ExportReportRequest request = new ExportReportRequest(
             UUID.randomUUID(),
             "CSV",
@@ -37,6 +39,6 @@ class ReportServiceTest {
         assertThatThrownBy(() -> service.generate(new CurrentUser(1L, "demo", "USER"), request))
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("报表数据过大");
-        verifyNoInteractions(projectService, reportMapper);
+        verifyNoInteractions(projectService, reportMapper, pdfReportService);
     }
 }
