@@ -1,10 +1,12 @@
 package com.urbanmicrocad.project.controller;
 
 import com.urbanmicrocad.common.response.ApiResponse;
+import com.urbanmicrocad.common.response.PageResponse;
 import com.urbanmicrocad.common.security.CurrentUser;
 import com.urbanmicrocad.project.dto.CreateProjectRequest;
 import com.urbanmicrocad.project.dto.ProjectDTO;
 import com.urbanmicrocad.project.dto.ProjectSnapshotDTO;
+import com.urbanmicrocad.project.dto.ProjectSummaryDTO;
 import com.urbanmicrocad.project.dto.SaveSnapshotRequest;
 import com.urbanmicrocad.project.dto.UpdateProjectRequest;
 import com.urbanmicrocad.project.service.ProjectService;
@@ -17,9 +19,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -32,8 +34,12 @@ public class ProjectController {
     }
 
     @GetMapping
-    public ApiResponse<List<ProjectDTO>> list(@AuthenticationPrincipal CurrentUser user) {
-        return ApiResponse.ok(projectService.list(user));
+    public ApiResponse<PageResponse<ProjectSummaryDTO>> list(
+        @AuthenticationPrincipal CurrentUser user,
+        @RequestParam(defaultValue = "1") int page,
+        @RequestParam(defaultValue = "20") int size
+    ) {
+        return ApiResponse.ok(projectService.list(user, page, size));
     }
 
     @PostMapping
@@ -74,11 +80,22 @@ public class ProjectController {
     }
 
     @GetMapping("/{id}/snapshots")
-    public ApiResponse<List<ProjectSnapshotDTO>> listSnapshots(
+    public ApiResponse<PageResponse<ProjectSnapshotDTO>> listSnapshots(
         @AuthenticationPrincipal CurrentUser user,
-        @PathVariable UUID id
+        @PathVariable UUID id,
+        @RequestParam(defaultValue = "1") int page,
+        @RequestParam(defaultValue = "20") int size
     ) {
-        return ApiResponse.ok(projectService.listSnapshots(user, id));
+        return ApiResponse.ok(projectService.listSnapshots(user, id, page, size));
+    }
+
+    @GetMapping("/{id}/snapshots/{version}")
+    public ApiResponse<ProjectDTO> getSnapshotByVersion(
+        @AuthenticationPrincipal CurrentUser user,
+        @PathVariable UUID id,
+        @PathVariable int version
+    ) {
+        return ApiResponse.ok(projectService.getSnapshotByVersion(user, id, version));
     }
 
     @PostMapping("/{id}/snapshots/{snapshotId}/restore")

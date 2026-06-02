@@ -22,7 +22,7 @@ class TemplateServiceTest {
         TemplateMapper mapper = mock(TemplateMapper.class);
         TemplateService service = new TemplateService(mapper);
 
-        List<TemplateDTO> templates = service.list("ROAD_SECTION");
+        List<TemplateDTO> templates = service.list("ROAD_SECTION", null);
 
         assertThat(templates).hasSizeGreaterThanOrEqualTo(3);
         assertThat(templates)
@@ -63,7 +63,7 @@ class TemplateServiceTest {
         TemplateMapper mapper = mock(TemplateMapper.class);
         TemplateService service = new TemplateService(mapper);
 
-        assertThat(service.list("UNKNOWN_CATEGORY")).isEqualTo(List.of());
+        assertThat(service.list("UNKNOWN_CATEGORY", null)).isEqualTo(List.of());
         verifyNoInteractions(mapper);
     }
 

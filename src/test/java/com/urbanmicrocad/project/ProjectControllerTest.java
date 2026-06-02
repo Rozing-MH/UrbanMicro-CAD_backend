@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.urbanmicrocad.auth.mapper.SysUserMapper;
 import com.urbanmicrocad.common.exception.ApiException;
 import com.urbanmicrocad.common.exception.ErrorCode;
+import com.urbanmicrocad.common.response.PageResponse;
 import com.urbanmicrocad.common.security.CurrentUserService;
 import com.urbanmicrocad.common.security.CurrentUser;
 import com.urbanmicrocad.common.security.JwtAuthenticationFilter;
@@ -16,6 +17,7 @@ import com.urbanmicrocad.project.controller.ProjectController;
 import com.urbanmicrocad.project.dto.CreateProjectRequest;
 import com.urbanmicrocad.project.dto.ProjectDTO;
 import com.urbanmicrocad.project.dto.ProjectSnapshotDTO;
+import com.urbanmicrocad.project.dto.ProjectSummaryDTO;
 import com.urbanmicrocad.project.dto.SaveSnapshotRequest;
 import com.urbanmicrocad.project.dto.UpdateProjectRequest;
 import com.urbanmicrocad.project.mapper.ProjectMapper;
@@ -38,6 +40,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -106,15 +109,25 @@ class ProjectControllerTest {
         );
     }
 
+    private ProjectSummaryDTO summaryDTO() {
+        return new ProjectSummaryDTO(
+            projectId, "Test Project", "desc",
+            1, OffsetDateTime.now(), OffsetDateTime.now(),
+            "1", null
+        );
+    }
+
     @Test
-    @DisplayName("GET /api/projects — 工程列表")
+    @DisplayName("GET /api/projects — 工程列表（分页）")
     void list_returnsProjects() throws Exception {
-        when(projectService.list(user)).thenReturn(List.of(projectDTO()));
+        PageResponse<ProjectSummaryDTO> page = new PageResponse<>(List.of(summaryDTO()), 1, 1, 20);
+        when(projectService.list(any(CurrentUser.class), anyInt(), anyInt())).thenReturn(page);
 
         mockMvc.perform(get("/api/projects").with(MockAuth.withUser(user)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.code").value(200))
-            .andExpect(jsonPath("$.data[0].name").value("Test Project"));
+            .andExpect(jsonPath("$.data.records[0].name").value("Test Project"))
+            .andExpect(jsonPath("$.data.total").value(1));
     }
 
     @Test
@@ -213,18 +226,19 @@ class ProjectControllerTest {
     }
 
     @Test
-    @DisplayName("GET /api/projects/{id}/snapshots — 快照列表")
+    @DisplayName("GET /api/projects/{id}/snapshots — 快照列表（分页）")
     void listSnapshots_success() throws Exception {
         ProjectSnapshotDTO snapshotDTO = new ProjectSnapshotDTO(
             UUID.randomUUID(), projectId, 1, "v1",
-            OffsetDateTime.now(), OffsetDateTime.now()
+            OffsetDateTime.now(), OffsetDateTime.now(), null
         );
-        when(projectService.listSnapshots(user, projectId)).thenReturn(List.of(snapshotDTO));
+        PageResponse<ProjectSnapshotDTO> page = new PageResponse<>(List.of(snapshotDTO), 1, 1, 20);
+        when(projectService.listSnapshots(any(CurrentUser.class), eq(projectId), anyInt(), anyInt())).thenReturn(page);
 
         mockMvc.perform(get("/api/projects/{id}/snapshots", projectId).with(MockAuth.withUser(user)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.code").value(200))
-            .andExpect(jsonPath("$.data[0].version").value(1));
+            .andExpect(jsonPath("$.data.records[0].version").value(1));
     }
 
     @Test

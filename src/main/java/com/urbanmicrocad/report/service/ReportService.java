@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.urbanmicrocad.common.config.JsonNodeTypeHandler;
 import com.urbanmicrocad.common.exception.ApiException;
 import com.urbanmicrocad.common.exception.ErrorCode;
+import com.urbanmicrocad.common.response.PageResponse;
 import com.urbanmicrocad.common.security.CurrentUser;
 import com.urbanmicrocad.project.service.ProjectService;
 import com.urbanmicrocad.report.dto.ExportReportRequest;
@@ -23,7 +24,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -47,17 +47,17 @@ public class ReportService {
         return createAndSave(user, request);
     }
 
-    public List<ReportSummary> list(CurrentUser user, UUID projectId) {
+    public PageResponse<ReportSummary> list(CurrentUser user, UUID projectId, int page, int size) {
         projectService.requireProject(user, projectId);
-        return reportMapper.selectPage(new Page<>(1, MAX_LIST_SIZE), new LambdaQueryWrapper<EvaluationReport>()
+        int safePage = Math.max(page, 1);
+        int safeSize = Math.clamp(size, 1, MAX_LIST_SIZE);
+        Page<EvaluationReport> mpPage = reportMapper.selectPage(new Page<>(safePage, safeSize),
+            new LambdaQueryWrapper<EvaluationReport>()
                 .eq(EvaluationReport::getUserId, user.id())
                 .eq(EvaluationReport::getProjectId, projectId)
                 .eq(EvaluationReport::getIsDeleted, false)
-                .orderByDesc(EvaluationReport::getGeneratedAt))
-            .getRecords()
-            .stream()
-            .map(this::toSummary)
-            .toList();
+                .orderByDesc(EvaluationReport::getGeneratedAt));
+        return PageResponse.from(mpPage, this::toSummary);
     }
 
     public ResponseEntity<byte[]> export(CurrentUser user, ExportReportRequest request) {
@@ -92,12 +92,13 @@ public class ReportService {
 
     public ReportDetailDTO detail(CurrentUser user, UUID reportId) {
         EvaluationReport report = requireReport(user, reportId);
+        double avgDelay = LosCalculator.averageDelay(report.getIntersectionLos());
         return new ReportDetailDTO(
             report.getId(),
             report.getProjectId(),
             report.getGeneratedAt(),
-            "C",
-            0,
+            LosCalculator.losGrade(avgDelay),
+            avgDelay,
             report.getLaneMetrics(),
             report.getIntersectionLos(),
             report.getHeatmapConfig(),
@@ -141,12 +142,13 @@ public class ReportService {
     }
 
     private ReportSummary toSummary(EvaluationReport report) {
+        double avgDelay = LosCalculator.averageDelay(report.getIntersectionLos());
         return new ReportSummary(
             report.getId(),
             report.getProjectId(),
             report.getGeneratedAt(),
-            "C",
-            0
+            LosCalculator.losGrade(avgDelay),
+            avgDelay
         );
     }
 

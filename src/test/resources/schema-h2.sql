@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS prj_template (
     category        VARCHAR(64),
     snapshot_data   CLOB,
     thumbnail_url   CLOB DEFAULT '',
+    user_id         BIGINT,
     created_at      TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     is_deleted      BOOLEAN DEFAULT FALSE

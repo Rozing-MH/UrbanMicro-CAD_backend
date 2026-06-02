@@ -3,6 +3,7 @@ package com.urbanmicrocad.report;
 import com.urbanmicrocad.auth.mapper.SysUserMapper;
 import com.urbanmicrocad.common.exception.ApiException;
 import com.urbanmicrocad.common.exception.ErrorCode;
+import com.urbanmicrocad.common.response.PageResponse;
 import com.urbanmicrocad.common.security.CurrentUserService;
 import com.urbanmicrocad.common.security.CurrentUser;
 import com.urbanmicrocad.common.security.JwtAuthenticationFilter;
@@ -38,6 +39,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -115,22 +117,23 @@ class ReportControllerTest {
     }
 
     @Test
-    @DisplayName("GET /api/reports?projectId=... — 报表列表")
+    @DisplayName("GET /api/reports?projectId=... — 报表列表（分页）")
     void list_success() throws Exception {
-        when(reportService.list(user, projectId)).thenReturn(List.of(reportSummary()));
+        PageResponse<ReportSummary> page = new PageResponse<>(List.of(reportSummary()), 1, 1, 20);
+        when(reportService.list(any(CurrentUser.class), eq(projectId), anyInt(), anyInt())).thenReturn(page);
 
         mockMvc.perform(get("/api/reports")
                 .param("projectId", projectId.toString())
                 .with(MockAuth.withUser(user)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.code").value(200))
-            .andExpect(jsonPath("$.data[0].id").value(reportId.toString()));
+            .andExpect(jsonPath("$.data.records[0].id").value(reportId.toString()));
     }
 
     @Test
     @DisplayName("GET /api/reports?projectId=... — 工程不存在返回404")
     void list_projectNotFound_returns404() throws Exception {
-        when(reportService.list(user, projectId))
+        when(reportService.list(any(CurrentUser.class), eq(projectId), anyInt(), anyInt()))
             .thenThrow(new ApiException(ErrorCode.NOT_FOUND, "工程不存在"));
 
         mockMvc.perform(get("/api/reports")

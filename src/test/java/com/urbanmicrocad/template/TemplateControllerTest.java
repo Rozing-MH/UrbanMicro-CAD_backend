@@ -30,6 +30,9 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -92,7 +95,7 @@ class TemplateControllerTest {
     @Test
     @DisplayName("GET /api/templates — 模板列表")
     void list_returnsTemplates() throws Exception {
-        when(templateService.list(null)).thenReturn(List.of(templateDTO()));
+        when(templateService.list(isNull(), any())).thenReturn(List.of(templateDTO()));
 
         mockMvc.perform(get("/api/templates").with(MockAuth.withDefaultUser()))
             .andExpect(status().isOk())
@@ -103,7 +106,7 @@ class TemplateControllerTest {
     @Test
     @DisplayName("GET /api/templates?category=BASIC_INTERSECTION — 按分类筛选")
     void list_withCategory_returnsFiltered() throws Exception {
-        when(templateService.list("BASIC_INTERSECTION")).thenReturn(List.of(templateDTO()));
+        when(templateService.list(eq("BASIC_INTERSECTION"), any())).thenReturn(List.of(templateDTO()));
 
         mockMvc.perform(get("/api/templates")
                 .param("category", "BASIC_INTERSECTION")
@@ -115,7 +118,7 @@ class TemplateControllerTest {
     @Test
     @DisplayName("GET /api/templates/{id} — 模板详情成功")
     void get_success() throws Exception {
-        when(templateService.get(templateId)).thenReturn(templateDTO());
+        when(templateService.get(eq(templateId), any())).thenReturn(templateDTO());
 
         mockMvc.perform(get("/api/templates/{id}", templateId).with(MockAuth.withDefaultUser()))
             .andExpect(status().isOk())
@@ -126,7 +129,7 @@ class TemplateControllerTest {
     @Test
     @DisplayName("GET /api/templates/{id} — 模板不存在返回404")
     void get_notFound_returns404() throws Exception {
-        when(templateService.get(templateId))
+        when(templateService.get(eq(templateId), any()))
             .thenThrow(new ApiException(ErrorCode.NOT_FOUND, "模板不存在"));
 
         mockMvc.perform(get("/api/templates/{id}", templateId).with(MockAuth.withDefaultUser()))

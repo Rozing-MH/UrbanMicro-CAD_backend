@@ -1,6 +1,7 @@
 package com.urbanmicrocad.report.controller;
 
 import com.urbanmicrocad.common.response.ApiResponse;
+import com.urbanmicrocad.common.response.PageResponse;
 import com.urbanmicrocad.common.security.CurrentUser;
 import com.urbanmicrocad.report.dto.ExportReportRequest;
 import com.urbanmicrocad.report.dto.ReportDetailDTO;
@@ -17,7 +18,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -38,11 +38,13 @@ public class ReportController {
     }
 
     @GetMapping
-    public ApiResponse<List<ReportSummary>> list(
+    public ApiResponse<PageResponse<ReportSummary>> list(
         @AuthenticationPrincipal CurrentUser user,
-        @RequestParam UUID projectId
+        @RequestParam UUID projectId,
+        @RequestParam(defaultValue = "1") int page,
+        @RequestParam(defaultValue = "20") int size
     ) {
-        return ApiResponse.ok(reportService.list(user, projectId));
+        return ApiResponse.ok(reportService.list(user, projectId, page, size));
     }
 
     @GetMapping("/{id}")

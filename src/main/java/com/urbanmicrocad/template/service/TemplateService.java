@@ -7,11 +7,14 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.urbanmicrocad.common.exception.ApiException;
 import com.urbanmicrocad.common.exception.ErrorCode;
+import com.urbanmicrocad.common.security.CurrentUser;
+import com.urbanmicrocad.template.dto.SaveCustomTemplateRequest;
 import com.urbanmicrocad.template.dto.TemplateDTO;
 import com.urbanmicrocad.template.entity.ProjectTemplate;
 import com.urbanmicrocad.template.mapper.TemplateMapper;
 import org.springframework.stereotype.Service;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -19,6 +22,7 @@ import java.util.UUID;
 @Service
 public class TemplateService {
     private static final String ROAD_SECTION_CATEGORY = "ROAD_SECTION";
+    private static final String CUSTOM_CATEGORY = "CUSTOM";
     private static final UUID DEFAULT_TWO_LANE_TEMPLATE_ID = UUID.fromString("11111111-1111-4111-8111-111111111111");
     private static final UUID ARTERIAL_BUS_TEMPLATE_ID = UUID.fromString("22222222-2222-4222-8222-222222222222");
     private static final UUID COMPLETE_STREET_TEMPLATE_ID = UUID.fromString("33333333-3333-4333-8333-333333333333");
@@ -39,7 +43,7 @@ public class TemplateService {
         this.objectMapper = new ObjectMapper();
     }
 
-    public List<TemplateDTO> list(String category) {
+    public List<TemplateDTO> list(String category, CurrentUser user) {
         if (ROAD_SECTION_CATEGORY.equals(category)) {
             return listCrossSectionTemplates();
         }
@@ -50,21 +54,81 @@ public class TemplateService {
         if (category != null && !category.isBlank()) {
             query.eq(ProjectTemplate::getCategory, category);
         }
+        // 包含系统模板 (userId IS NULL) + 当前用户自定义模板
+        if (user != null) {
+            query.and(w -> w.isNull(ProjectTemplate::getUserId)
+                .or(sub -> sub.eq(ProjectTemplate::getUserId, user.id())));
+        } else {
+            query.isNull(ProjectTemplate::getUserId);
+        }
         return templateMapper.selectList(query).stream()
             .map(this::toDto)
             .toList();
     }
 
-    public TemplateDTO get(UUID id) {
+    public TemplateDTO get(UUID id, CurrentUser user) {
         TemplateDTO crossSection = findCrossSectionTemplate(id);
         if (crossSection != null) {
             return crossSection;
         }
-        ProjectTemplate template = templateMapper.selectOne(activeTemplateQuery().eq(ProjectTemplate::getId, id));
+        LambdaQueryWrapper<ProjectTemplate> query = activeTemplateQuery().eq(ProjectTemplate::getId, id);
+        if (user != null) {
+            query.and(w -> w.isNull(ProjectTemplate::getUserId)
+                .or(sub -> sub.eq(ProjectTemplate::getUserId, user.id())));
+        } else {
+            query.isNull(ProjectTemplate::getUserId);
+        }
+        ProjectTemplate template = templateMapper.selectOne(query);
         if (template == null) {
             throw new ApiException(ErrorCode.NOT_FOUND, "模板不存在");
         }
         return toDto(template);
+    }
+
+    /**
+     * 保存用户自定义断面模板。category 强制设为 CUSTOM。
+     */
+    public TemplateDTO saveCustomTemplate(CurrentUser user, SaveCustomTemplateRequest request) {
+        validateProfile(request.profile());
+        checkDuplicateName(user.id(), request.name());
+        OffsetDateTime now = OffsetDateTime.now();
+        ProjectTemplate template = new ProjectTemplate();
+        template.setId(UUID.randomUUID());
+        template.setName(request.name());
+        template.setCategory(CUSTOM_CATEGORY);
+        template.setSnapshotData(snapshotDataFromProfile(request.profile()));
+        template.setThumbnailUrl("");
+        template.setUserId(user.id());
+        template.setCreatedAt(now);
+        template.setUpdatedAt(now);
+        template.setIsDeleted(false);
+        templateMapper.insert(template);
+        return toCustomDto(template, request.profile());
+    }
+
+    private void validateProfile(JsonNode profile) {
+        if (profile == null || !profile.isObject()) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "profile 必须为有效 JSON 对象");
+        }
+        if (!profile.has("lanes") || !profile.get("lanes").isArray()) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "profile 必须包含 lanes 数组");
+        }
+    }
+
+    private void checkDuplicateName(Long userId, String name) {
+        boolean exists = templateMapper.selectCount(new LambdaQueryWrapper<ProjectTemplate>()
+            .eq(ProjectTemplate::getUserId, userId)
+            .eq(ProjectTemplate::getName, name)
+            .eq(ProjectTemplate::getIsDeleted, false)) > 0;
+        if (exists) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "已存在同名自定义模板");
+        }
+    }
+
+    private JsonNode snapshotDataFromProfile(JsonNode profile) {
+        ObjectNode snapshotData = objectMapper.createObjectNode();
+        snapshotData.set("profile", profile.deepCopy());
+        return snapshotData;
     }
 
     public List<TemplateDTO> listCrossSectionTemplates() {
@@ -130,7 +194,7 @@ public class TemplateService {
     public JsonNode getCrossSection(String id) {
         return listCrossSectionTemplates().stream()
             .map(TemplateDTO::profile)
-            .filter(profile -> id.equals(profile.get("id").asText()))
+            .filter(p -> id.equals(p.get("id").asText()))
             .findFirst()
             .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "断面模板不存在"));
     }
@@ -149,13 +213,28 @@ public class TemplateService {
     }
 
     private TemplateDTO toDto(ProjectTemplate template) {
+        JsonNode profile = null;
+        if (template.getSnapshotData() != null && template.getSnapshotData().has("profile")) {
+            profile = template.getSnapshotData().get("profile");
+        }
         return new TemplateDTO(
             template.getId(),
             template.getName(),
             template.getCategory(),
             template.getSnapshotData(),
             template.getThumbnailUrl(),
-            null
+            profile
+        );
+    }
+
+    private TemplateDTO toCustomDto(ProjectTemplate template, JsonNode profile) {
+        return new TemplateDTO(
+            template.getId(),
+            template.getName(),
+            CUSTOM_CATEGORY,
+            template.getSnapshotData(),
+            template.getThumbnailUrl(),
+            profile
         );
     }
 

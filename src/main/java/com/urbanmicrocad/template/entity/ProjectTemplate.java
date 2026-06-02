@@ -21,6 +21,16 @@ public class ProjectTemplate {
     private String thumbnailUrl;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
+    private Long userId;
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public void setUserId(Long userId) {
+        this.userId = userId;
+    }
+
     private Boolean isDeleted;
 
     public UUID getId() {

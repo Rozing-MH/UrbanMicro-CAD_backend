@@ -9,9 +9,11 @@ import com.urbanmicrocad.common.config.JsonNodeTypeHandler;
 import com.urbanmicrocad.common.exception.ApiException;
 import com.urbanmicrocad.common.exception.ErrorCode;
 import com.urbanmicrocad.common.security.CurrentUser;
+import com.urbanmicrocad.common.response.PageResponse;
 import com.urbanmicrocad.project.dto.CreateProjectRequest;
 import com.urbanmicrocad.project.dto.ProjectDTO;
 import com.urbanmicrocad.project.dto.ProjectSnapshotDTO;
+import com.urbanmicrocad.project.dto.ProjectSummaryDTO;
 import com.urbanmicrocad.project.dto.SaveSnapshotRequest;
 import com.urbanmicrocad.project.dto.UpdateProjectRequest;
 import com.urbanmicrocad.project.entity.Project;
@@ -22,7 +24,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
-import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -40,12 +41,11 @@ public class ProjectService {
         this.objectMapper = objectMapper;
     }
 
-    public List<ProjectDTO> list(CurrentUser user) {
-        return projectMapper.selectPage(new Page<>(1, MAX_LIST_SIZE), ownerQuery(user.id()))
-            .getRecords()
-            .stream()
-            .map(this::toDto)
-            .toList();
+    public PageResponse<ProjectSummaryDTO> list(CurrentUser user, int page, int size) {
+        int safePage = Math.max(page, 1);
+        int safeSize = Math.clamp(size, 1, MAX_LIST_SIZE);
+        Page<Project> mpPage = projectMapper.selectPage(new Page<>(safePage, safeSize), ownerQuery(user.id()));
+        return PageResponse.from(mpPage, this::toSummaryDto);
     }
 
     @Transactional
@@ -113,16 +113,16 @@ public class ProjectService {
         return toDto(updatedProject);
     }
 
-    public List<ProjectSnapshotDTO> listSnapshots(CurrentUser user, UUID projectId) {
+    public PageResponse<ProjectSnapshotDTO> listSnapshots(CurrentUser user, UUID projectId, int page, int size) {
         requireProject(user, projectId);
-        return snapshotMapper.selectPage(new Page<>(1, MAX_LIST_SIZE), new LambdaQueryWrapper<ProjectSnapshot>()
+        int safePage = Math.max(page, 1);
+        int safeSize = Math.clamp(size, 1, MAX_LIST_SIZE);
+        Page<ProjectSnapshot> mpPage = snapshotMapper.selectPage(new Page<>(safePage, safeSize),
+            new LambdaQueryWrapper<ProjectSnapshot>()
                 .eq(ProjectSnapshot::getProjectId, projectId)
                 .eq(ProjectSnapshot::getIsDeleted, false)
-                .orderByDesc(ProjectSnapshot::getVersion))
-            .getRecords()
-            .stream()
-            .map(this::toSnapshotDto)
-            .toList();
+                .orderByDesc(ProjectSnapshot::getVersion));
+        return PageResponse.from(mpPage, s -> toSnapshotDto(s, false));
     }
 
     @Transactional
@@ -138,6 +138,54 @@ public class ProjectService {
         project.setUpdatedAt(OffsetDateTime.now());
         projectMapper.updateById(project);
         return toDto(requireProject(user, projectId));
+    }
+
+    /**
+     * 按版本号加载快照数据（只读，不修改工程当前状态）。
+     * 对齐设计文档 GET /api/projects/{id}/snapshots/{version}。
+     */
+    public ProjectDTO getSnapshotByVersion(CurrentUser user, UUID projectId, int version) {
+        requireProject(user, projectId);
+        ProjectSnapshot snapshot = snapshotMapper.selectOne(new LambdaQueryWrapper<ProjectSnapshot>()
+            .eq(ProjectSnapshot::getProjectId, projectId)
+            .eq(ProjectSnapshot::getVersion, version)
+            .eq(ProjectSnapshot::getIsDeleted, false));
+        if (snapshot == null) {
+            throw new ApiException(ErrorCode.NOT_FOUND, "快照版本不存在");
+        }
+        return toDtoFromSnapshot(projectId, snapshot);
+    }
+
+    /**
+     * 从快照 JSONB 重建 ProjectDTO。
+     * 兼容 topologyData/ruleData 和 topology/rules 两种键名。
+     */
+    private ProjectDTO toDtoFromSnapshot(UUID projectId, ProjectSnapshot snapshot) {
+        JsonNode data = snapshot.getSnapshotData();
+        JsonNode topologyData = extractField(data, "topologyData", "topology");
+        JsonNode ruleData = extractField(data, "ruleData", "rules");
+        return new ProjectDTO(
+            projectId,
+            null,
+            defaultString(snapshot.getDescription()),
+            topologyData == null ? JsonNodeTypeHandler.emptyObject() : topologyData,
+            ruleData == null ? defaultRuleData() : ruleData,
+            snapshot.getVersion(),
+            snapshot.getCreatedAt(),
+            snapshot.getUpdatedAt(),
+            null,
+            null
+        );
+    }
+
+    private JsonNode extractField(JsonNode parent, String... keys) {
+        if (parent == null) return null;
+        for (String key : keys) {
+            if (parent.has(key) && parent.get(key).isObject()) {
+                return parent.get(key);
+            }
+        }
+        return null;
     }
 
     public Project requireProject(CurrentUser user, UUID id) {
@@ -181,14 +229,28 @@ public class ProjectService {
         );
     }
 
-    private ProjectSnapshotDTO toSnapshotDto(ProjectSnapshot snapshot) {
+    private ProjectSummaryDTO toSummaryDto(Project project) {
+        return new ProjectSummaryDTO(
+            project.getId(),
+            project.getName(),
+            defaultString(project.getDescription()),
+            project.getVersion(),
+            project.getCreatedAt(),
+            project.getUpdatedAt(),
+            project.getUserId() == null ? null : project.getUserId().toString(),
+            null
+        );
+    }
+
+    private ProjectSnapshotDTO toSnapshotDto(ProjectSnapshot snapshot, boolean includeData) {
         return new ProjectSnapshotDTO(
             snapshot.getId(),
             snapshot.getProjectId(),
             snapshot.getVersion(),
             defaultString(snapshot.getDescription()),
             snapshot.getCreatedAt(),
-            snapshot.getUpdatedAt()
+            snapshot.getUpdatedAt(),
+            includeData ? snapshot.getSnapshotData() : null
         );
     }
 

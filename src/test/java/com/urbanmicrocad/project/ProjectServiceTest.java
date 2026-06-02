@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.urbanmicrocad.common.exception.ApiException;
 import com.urbanmicrocad.common.security.CurrentUser;
-import com.urbanmicrocad.project.dto.ProjectSnapshotDTO;
 import com.urbanmicrocad.project.dto.SaveSnapshotRequest;
 import com.urbanmicrocad.project.entity.Project;
 import com.urbanmicrocad.project.entity.ProjectSnapshot;
@@ -62,12 +61,12 @@ class ProjectServiceTest {
         snapshotPage.setRecords(List.of(snapshot));
         when(snapshotMapper.selectPage(any(Page.class), any(Wrapper.class))).thenReturn(snapshotPage);
 
-        List<ProjectSnapshotDTO> snapshots = service.listSnapshots(user, project.getId());
+        var snapshots = service.listSnapshots(user, project.getId(), 1, 20);
 
-        assertThat(snapshots).hasSize(1);
-        assertThat(snapshots.get(0).id()).isEqualTo(snapshot.getId());
-        assertThat(snapshots.get(0).version()).isEqualTo(2);
-        assertThat(snapshots.get(0).description()).isEqualTo("snapshot 2");
+        assertThat(snapshots.records()).hasSize(1);
+        assertThat(snapshots.records().get(0).id()).isEqualTo(snapshot.getId());
+        assertThat(snapshots.records().get(0).version()).isEqualTo(2);
+        assertThat(snapshots.records().get(0).description()).isEqualTo("snapshot 2");
     }
 
     @Test
@@ -121,6 +120,41 @@ class ProjectServiceTest {
         assertThatThrownBy(() -> service.restoreSnapshot(user, project.getId(), snapshot.getId()))
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("快照数据不完整");
+    }
+
+    @Test
+    void loadsSnapshotByVersionReadOnly() {
+        ProjectMapper projectMapper = mock(ProjectMapper.class);
+        ProjectSnapshotMapper snapshotMapper = mock(ProjectSnapshotMapper.class);
+        ProjectService service = new ProjectService(projectMapper, snapshotMapper, objectMapper);
+        CurrentUser user = new CurrentUser(1L, "demo", "USER");
+        Project project = project(user.id());
+        ObjectNode snapshotData = snapshotData("version-load-test");
+        ProjectSnapshot snapshot = snapshot(project.getId(), 5, snapshotData);
+        when(projectMapper.selectOne(any(Wrapper.class))).thenReturn(project);
+        when(snapshotMapper.selectOne(any(Wrapper.class))).thenReturn(snapshot);
+
+        var result = service.getSnapshotByVersion(user, project.getId(), 5);
+
+        assertThat(result.topologyData()).isNotNull();
+        assertThat(result.topologyData().get("name").asText()).isEqualTo("version-load-test");
+        assertThat(result.ruleData()).isNotNull();
+        assertThat(result.version()).isEqualTo(5);
+    }
+
+    @Test
+    void rejectsSnapshotByVersionWhenVersionNotFound() {
+        ProjectMapper projectMapper = mock(ProjectMapper.class);
+        ProjectSnapshotMapper snapshotMapper = mock(ProjectSnapshotMapper.class);
+        ProjectService service = new ProjectService(projectMapper, snapshotMapper, objectMapper);
+        CurrentUser user = new CurrentUser(1L, "demo", "USER");
+        Project project = project(user.id());
+        when(projectMapper.selectOne(any(Wrapper.class))).thenReturn(project);
+        when(snapshotMapper.selectOne(any(Wrapper.class))).thenReturn(null);
+
+        assertThatThrownBy(() -> service.getSnapshotByVersion(user, project.getId(), 99))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("快照版本不存在");
     }
 
     private Project project(Long userId) {
