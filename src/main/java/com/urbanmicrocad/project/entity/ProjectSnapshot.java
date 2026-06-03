@@ -14,7 +14,6 @@ import java.util.UUID;
 @TableName(value = "prj_snapshot", autoResultMap = true)
 public class ProjectSnapshot {
     @TableId(type = IdType.INPUT)
-    @TableField(typeHandler = UuidTypeHandler.class)
     private UUID id;
     @TableField(typeHandler = UuidTypeHandler.class)
     private UUID projectId;

@@ -14,7 +14,6 @@ import java.util.UUID;
 @TableName(value = "rpt_evaluation_report", autoResultMap = true)
 public class EvaluationReport {
     @TableId(type = IdType.INPUT)
-    @TableField(typeHandler = UuidTypeHandler.class)
     private UUID id;
     @TableField(typeHandler = UuidTypeHandler.class)
     private UUID projectId;

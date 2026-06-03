@@ -5,10 +5,15 @@ spring:
   application:
     name: urbanmicro-cad-backend
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/urbanmicro}
-    username: ${SPRING_DATASOURCE_USERNAME:urbanmicro}
-    password: ${SPRING_DATASOURCE_PASSWORD:changeme}
+    url: jdbc:postgresql://db.zmxmndexptzuynyuqitb.supabase.co:5432/postgres
+    username: postgres
+    password: Rozing096mh
     driver-class-name: org.postgresql.Driver
+  # 本地开发无 Redis，禁用自动配置避免连接失败
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
   jackson:
     default-property-inclusion: non_null
 

@@ -6,7 +6,6 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.urbanmicrocad.common.config.JsonNodeTypeHandler;
-import com.urbanmicrocad.common.config.UuidTypeHandler;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -14,7 +13,6 @@ import java.util.UUID;
 @TableName(value = "prj_project", autoResultMap = true)
 public class Project {
     @TableId(type = IdType.INPUT)
-    @TableField(typeHandler = UuidTypeHandler.class)
     private UUID id;
     private Long userId;
     private String name;
