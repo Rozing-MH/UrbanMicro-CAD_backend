@@ -1,17 +1,20 @@
 package com.urbanmicrocad.auth.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.urbanmicrocad.common.config.PgEnumTypeHandler;
 
 import java.time.OffsetDateTime;
 
-@TableName("sys_user")
+@TableName(value = "sys_user", autoResultMap = true)
 public class SysUser {
     @TableId(type = IdType.AUTO)
     private Long id;
     private String username;
     private String passwordHash;
+    @TableField(typeHandler = PgEnumTypeHandler.class)
     private String role;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
