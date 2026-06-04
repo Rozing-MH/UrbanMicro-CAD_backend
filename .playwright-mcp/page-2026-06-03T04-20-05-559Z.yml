@@ -1,0 +1,9 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]: UrbanMicro-CAD
+    - button "退出" [ref=e7] [cursor=pointer]
+  - main [ref=e8]:
+    - generic [ref=e9]:
+      - heading "我的项目" [level=1] [ref=e10]
+      - button "+ 新建项目" [ref=e11] [cursor=pointer]
+    - generic [ref=e12]: 暂无项目，点击「新建项目」开始
